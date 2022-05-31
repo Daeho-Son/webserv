@@ -6,16 +6,16 @@
 class Conf
 {
 public:
-	Conf(int port, std::string &serverName, int clientBodySize);
+	Conf();
+	Conf(int port, const std::string &serverName, int clientBodySize);
 	Conf(const Conf& other);
 	Conf& operator=(const Conf& other);
-	int GetPort();
-	std::string GetServerName();
-	int GetClientBodySize();
-protected:
 	virtual ~Conf();
-private:
-	Conf();
+
+	int GetPort() const;
+	std::string GetServerName() const;
+	int GetClientBodySize() const;
+
 private:
 	int mPort;
 	std::string mServerName;
