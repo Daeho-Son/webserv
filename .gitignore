@@ -1,3 +1,6 @@
 # Files
 *.o
 webserv
+
+# Folders
+.vscode
