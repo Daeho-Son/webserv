@@ -2,32 +2,22 @@
 
 Conf::Conf()
 {
-	this->mPort = 8080;
-	this->mServerName = "webserv";
-	this->mClientBodySize = 4096;
+
 }
 
-Conf::Conf(int port, const std::string &serverName, int clientBodySize)
+Conf::Conf(int port, std::string &serverName, int clientBodySize)
 {
-	this->mPort = port;
-	this->mServerName = serverName;
-	this->mClientBodySize = clientBodySize;
+
 }
 
 Conf::Conf(const Conf& other)
 {
-	this->mPort = other.GetPort();
-	this->mServerName = other.GetServerName();
-	this->mClientBodySize = other.GetClientBodySize();
+
 }
 
 Conf& Conf::operator=(const Conf &other)
 {
-	this->mPort = other.GetPort();
-	this->mServerName = other.GetServerName();
-	this->mClientBodySize = other.GetClientBodySize();
 
-	return *this;
 }
 
 Conf::~Conf()
@@ -35,19 +25,19 @@ Conf::~Conf()
 
 }
 
-int Conf::GetPort() const
+int Conf::GetPort()
 {
-	return mPort;
+
 }
 
-std::string Conf::GetServerName() const
+std::string Conf::GetServerName()
 {
-	return mServerName;
+
 }
 
-int Conf::GetClientBodySize() const
+int Conf::GetClientBodySize()
 {
-	return mClientBodySize;
+
 }
 
 

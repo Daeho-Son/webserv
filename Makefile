@@ -2,11 +2,12 @@ CXX = c++
 CXXFLAGS = -std=c++98 -Wall -Wextra -Werror
 DEUBG = -g -fsanitize=address
 
-NAME = webserv
+NAME = webser
 INCLUDE = -I ./include
-SRC_DIR = ./src/
+SRC_DIR = ./src
 SRC_FILE =	main.cpp \
 			Conf.cpp \
+			HttpReqeust.cpp \
 			HttpServer.cpp
 SRCS = $(addprefix $(SRC_DIR), $(SRC_FILE))
 OBJS = $(SRCS:.cpp=.o)
