@@ -1,4 +1,5 @@
 #include "HttpServer.hpp"
+#include "HttpRequest.hpp"
 
 HttpServer::HttpServer(Conf& conf)
 {
@@ -58,7 +59,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		int newEventSize = kevent(kq, &changeList[0], changeList.size(), eventList, 1024, NULL); // TODO: use Conf
 		changeList.clear();
 
-		std::cout << newEventSize << std::endl;
+		std::cout << "New event size: " << newEventSize << std::endl;
 
 		for (int i=0; i<newEventSize; ++i)
 		{
@@ -70,6 +71,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				// 새로운 Client
 				if (newEvent->ident == (uintptr_t)serverSocket)
 				{
+					std::cout << "New client exists.\n";
 					int newClientSocket;
 					if ((newClientSocket = accept(serverSocket, NULL, NULL)) == -1)
 					{
@@ -77,12 +79,14 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						continue;
 					}
 					clients.insert(newClientSocket);
+					fcntl(newClientSocket, F_SETFL, O_NONBLOCK);
 					this->addEvent(changeList, newClientSocket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
-					this->addEvent(changeList, newClientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+					this->addEvent(changeList, newClientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
 				}
 				// 기존 Client
 				else
 				{
+					std::cout << "The client " << newEvent->ident << " sent a message.\n";
 					std::unordered_set<int>::iterator clientIt = clients.find(newEvent->ident);
 					if (clientIt == clients.end()) {
 						std::cerr << "[ERROR] Request from Invalid client\n";
@@ -100,6 +104,12 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					else
 					{
 						std::cout << buffer << std::endl;
+						HttpRequest httprequest(buffer);
+						std::cout << httprequest.getFieldByKey("Host") << std::endl;
+						std::cout << "Body: " << httprequest.getFieldByKey("Body") << std::endl;
+
+						// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
+						this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 					}
 				}
 			} // 읽기 요청 이벤트 끝
@@ -107,6 +117,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 			// 쓰기 요청 이벤트
 			if (newEvent->filter == EVFILT_WRITE)
 			{
+				std::cout << "Pending message to " << newEvent->ident << ".\n";
 				int clientSocket = newEvent->ident;
 				const std::string message = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
 				int sendResult = send(clientSocket, message.c_str(), message.length(), 0);
@@ -118,7 +129,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
 			}
 		} // end of for
-		std::cout << "\nmainloop\n";
 	} // end of main loop
 
 	return 0;

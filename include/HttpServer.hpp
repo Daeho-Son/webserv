@@ -1,6 +1,7 @@
 #ifndef HTTP_SERVER_HPP
 # define HTTP_SERVER_HPP
 
+# include <fcntl.h>
 # include <iostream>
 # include <netinet/in.h> // sockaddr_in
 # include <string>
