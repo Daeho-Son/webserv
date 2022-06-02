@@ -42,7 +42,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 	int kq = kqueue();
 	if (kq < 0)
 	{
-		assert(kq < 0);
+		assert(kq >= 0);
 		std::cerr << "[ERROR] kqueue() failed.\n";
 		close(serverSocket);
 		return 1;
@@ -50,7 +50,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 
 	std::unordered_set<int> clients;
 	std::vector<struct kevent> changeList;
-	addEvent(changeList, serverSocket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+	this->addEvent(changeList, serverSocket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
 	struct kevent eventList[1024]; // TODO: use Conf object
 
 	// Main loop
@@ -104,10 +104,10 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					else
 					{
 						std::cout << buffer << std::endl;
-						HttpRequest httprequest(buffer);
-						std::cout << httprequest.getFieldByKey("Host") << std::endl;
-						std::cout << "Body: " << httprequest.getFieldByKey("Body") << std::endl;
-
+						HttpRequest httpRequest(buffer);
+						int statusCode = GetStatusCode(httpRequest);
+						std::cout << "Status Code: " << statusCode << std::endl;
+						std::string messageBody = GetMessageBody(httpRequest);
 						// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
 						this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 					}
@@ -174,4 +174,63 @@ HttpServer& HttpServer::operator=(const HttpServer& other)
 {
 	(void)other;
 	return *this;
+}
+
+// TODO: (의논) 외부 함수로 뺄까?
+static std::string GetTargetFile(HttpRequest& httpRequest)
+{
+	std::string requestTarget = httpRequest.getFieldByKey("RequestTarget");
+	std::string path = "./";
+	std::string targetFile = "";
+	if (requestTarget == "/")
+		requestTarget = CONF_DEFAULT_TARGET; // TODO: use conf
+	if (requestTarget.find(".html") != requestTarget.npos)
+		path += "html";
+	if (requestTarget.find(".ico") != requestTarget.npos)
+		path += "ico";
+	targetFile = path + requestTarget;
+	return targetFile;
+}
+
+static bool IsValidStatus404(HttpRequest& httpRequest)
+{
+	std::string targetFile = GetTargetFile(httpRequest);
+	std::ifstream readFile;
+	readFile.open(targetFile);
+	// TODO: (search) 파일은 존재하지만 파일에 읽기 권한이 없을 때, 다른 처리를 해야하는가?
+	if (!readFile.is_open())
+		return false;
+	return true;
+}
+
+static bool IsValidStatus505(HttpRequest& httpRequest)
+{
+	std::string protocolVersion = httpRequest.getFieldByKey("ProtocolVersion");
+	if (protocolVersion != "HTTP/1.1")
+		return false;
+	return true;
+}
+int HttpServer::GetStatusCode(HttpRequest& httpRequest)
+{
+	if (IsValidStatus404(httpRequest) == false)
+		return 404;
+	if (IsValidStatus505(httpRequest) == false)
+		return 505;
+	return 200;
+}
+
+std::string HttpServer::GetMessageBody(HttpRequest& httpRequest)
+{
+	std::string messageBody = "";
+	std::string targetFile = GetTargetFile(httpRequest);
+	std::ifstream readFile;
+	std::string buff;
+	
+	readFile.open(targetFile);
+	// TODO: (의논) messageBody에 \n도 붙여야하는지?
+	while (getline(readFile, buff))
+		messageBody += buff ;
+	readFile.close();	
+	std::cout << "Message Body: " << messageBody << std::endl;
+	return messageBody;
 }
