@@ -45,15 +45,15 @@ bool HttpRequest::parseHttpMessageToMap(std::unordered_map<std::string, std::str
 		std::cout << "Start line이 존재하지 않습니다." << std::endl;
 		return (false);
 	}
-	std::vector<std::string> startLine = split(splitMessage[0], ' ');
-	if (startLine.size() != 3)
+	std::vector<std::string> requestLine = split(splitMessage[0], ' ');
+	if (requestLine.size() != 3)
 	{
 		std::cout << "Start line에 잘못된 값이 입력되었습니다." << std::endl;
 		return (false);
 	}
-	mHttpMessageMap["HttpMethod"] = startLine[0];
-	mHttpMessageMap["RequestTarget"] = startLine[1];
-	mHttpMessageMap["HttpVersion"] = startLine[2];
+	mHttpMessageMap["MethodToken"] = requestLine[0];
+	mHttpMessageMap["RequestTarget"] = requestLine[1];
+	mHttpMessageMap["ProtocolVersion"] = requestLine[2].substr(0, 8);
 	for (unsigned int i = 1; i < splitMessage.size(); i++)
 	{
 		if (splitMessage[i].length() == 1)
@@ -63,18 +63,13 @@ bool HttpRequest::parseHttpMessageToMap(std::unordered_map<std::string, std::str
 		unsigned int j;
 		for (j = 1; j < data.size() - 1; j++)
 			key = key + data[j] + ":";
-		key = key + data[j];
+		key = key + data[j].substr(0, data[j].size() - 1);
 		mHttpMessageMap[data[0]] = key.substr(1, key.size() - 1);
 	}
-
 	if (httpMessage.find("\n\n") == httpMessage.npos)
-	{
 		mHttpMessageMap["Body"] = "null";
-	}
 	else
-	{
 		mHttpMessageMap["Body"] = httpMessage.substr(httpMessage.find("\n\n") + 2, httpMessage.size() - httpMessage.find("\n\n") - 2);
-	}
 	return (true);
 }
 
@@ -83,6 +78,5 @@ std::string HttpRequest::getFieldByKey(const std::string &key)
 	std::unordered_map<std::string, std::string>::iterator fieldIt = this->mHttpMessageMap.find(key);
 	if (fieldIt == this->mHttpMessageMap.end())
 		return ("null");
-	std::cout << (*fieldIt).second;
 	return (*fieldIt).second;
 }
