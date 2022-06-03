@@ -8,7 +8,10 @@ SRC_DIR = ./src/
 SRC_FILE =	main.cpp \
 			Conf.cpp \
 			HttpServer.cpp	\
-			HttpRequest.cpp
+			HttpRequest.cpp	\
+			HttpResponse.cpp\
+			util.cpp
+
 SRCS = $(addprefix $(SRC_DIR), $(SRC_FILE))
 OBJS = $(SRCS:.cpp=.o)
 
