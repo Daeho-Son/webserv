@@ -9,6 +9,7 @@
 # include <sys/event.h> // kqueue()
 # include <sys/socket.h>
 # include <unistd.h> // close()
+# include <unordered_map>
 # include <unordered_set>
 # include <vector>
 
@@ -17,6 +18,8 @@
 # include "HttpResponse.hpp"
 
 # define CONF_DEFAULT_TARGET "/index.html"
+
+using namespace ft;
 
 class HttpServer
 {

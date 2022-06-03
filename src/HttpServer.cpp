@@ -1,9 +1,10 @@
 #include "HttpServer.hpp"
-#include "HttpRequest.hpp"
 
 HttpServer::HttpServer(Conf& conf)
 {
 	this->mServerConf = conf;
+
+
 }
 
 int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여야 합니다.
@@ -49,6 +50,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 	}
 
 	std::unordered_set<int> clients;
+	std::unordered_map<int, HttpResponse> responses;
 	std::vector<struct kevent> changeList;
 	this->addEvent(changeList, serverSocket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
 	struct kevent eventList[1024]; // TODO: use Conf object
@@ -108,6 +110,8 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						int statusCode = GetStatusCode(httpRequest);
 						std::cout << "Status Code: " << statusCode << std::endl;
 						std::string messageBody = GetMessageBody(httpRequest);
+						responses[*clientIt] = HttpResponse(statusCode, messageBody);
+
 						// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
 						this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 					}
@@ -119,8 +123,12 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 			{
 				std::cout << "Pending message to " << newEvent->ident << ".\n";
 				int clientSocket = newEvent->ident;
-				const std::string message = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
-				int sendResult = send(clientSocket, message.c_str(), message.length(), 0);
+				int sendResult = -1;
+				if (responses.find(clientSocket) != responses.end())
+				{
+					std::string message = responses[clientSocket].GetHttpMessage();
+					sendResult = send(clientSocket, message.c_str(), message.length(), 0); // TODO: 2번 변환 없애기
+				}
 				if (sendResult == -1) {
 					std::cerr << "[ERROR] Failed to send message to client.\n";
 					close(clientSocket);
@@ -225,12 +233,12 @@ std::string HttpServer::GetMessageBody(HttpRequest& httpRequest)
 	std::string targetFile = GetTargetFile(httpRequest);
 	std::ifstream readFile;
 	std::string buff;
-	
+
 	readFile.open(targetFile);
 	// TODO: (의논) messageBody에 \n도 붙여야하는지?
 	while (getline(readFile, buff))
 		messageBody += buff ;
-	readFile.close();	
+	readFile.close();
 	std::cout << "Message Body: " << messageBody << std::endl;
 	return messageBody;
 }
