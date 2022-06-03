@@ -37,7 +37,7 @@ private:
 	int addEvent(std::vector<struct kevent>& changeList, uintptr_t ident, int16_t filter, uint16_t flags, uint32_t fflags, intptr_t data, void* udata);
 	HttpResponse GetResponseByRequest(HttpRequest& request);
 	int GetStatusCode(HttpRequest& httpRequest);
-	std::string GetMessageBody(HttpRequest& httpRequest);
+	std::string GetMessageBody(HttpRequest& httpRequest, int statusCode);
 private:
 	Conf mServerConf;
 };

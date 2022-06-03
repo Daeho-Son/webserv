@@ -109,7 +109,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						HttpRequest httpRequest(buffer);
 						int statusCode = GetStatusCode(httpRequest);
 						std::cout << "Status Code: " << statusCode << std::endl;
-						std::string messageBody = GetMessageBody(httpRequest);
+						std::string messageBody = GetMessageBody(httpRequest, statusCode);
 						responses[*clientIt] = HttpResponse(statusCode, messageBody);
 
 						// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
@@ -227,18 +227,22 @@ int HttpServer::GetStatusCode(HttpRequest& httpRequest)
 	return 200;
 }
 
-std::string HttpServer::GetMessageBody(HttpRequest& httpRequest)
+std::string HttpServer::GetMessageBody(HttpRequest& httpRequest, int statusCode)
 {
+	std::stringstream ss;
 	std::string messageBody = "";
-	std::string targetFile = GetTargetFile(httpRequest);
+	std::string targetFile = "";
+	if (statusCode != 200)
+		targetFile = "./html/404.html";
+	else
+		targetFile = GetTargetFile(httpRequest);
 	std::ifstream readFile;
 	std::string buff;
 
 	readFile.open(targetFile);
 	// TODO: (의논) messageBody에 \n도 붙여야하는지?
 	while (getline(readFile, buff))
-		messageBody += buff ;
+		ss << buff;
 	readFile.close();
-	std::cout << "Message Body: " << messageBody << std::endl;
-	return messageBody;
+	return ss.str();
 }
