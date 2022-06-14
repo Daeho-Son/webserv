@@ -4,7 +4,17 @@
 
 int main(void)
 {
-	Conf conf(8080, "webserv", 1024);
+	Conf conf("./conf/test_1.conf");
+	if (conf.IsValid() == true)
+	{
+		conf.PrintConfData();
+	}
+	else
+	{
+		std::cerr << "Invalid Conf" << std::endl;
+		return 1;
+	}
+		
 	HttpServer server(conf);
 
 	HttpResponse response(200, "Hello, world");
