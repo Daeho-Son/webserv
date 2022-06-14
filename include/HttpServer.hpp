@@ -8,6 +8,7 @@
 # include <string>
 # include <sys/event.h> // kqueue()
 # include <sys/socket.h>
+# include <sys/stat.h>
 # include <unistd.h> // close()
 # include <unordered_map>
 # include <unordered_set>
@@ -37,7 +38,10 @@ private:
 	int addEvent(std::vector<struct kevent>& changeList, uintptr_t ident, int16_t filter, uint16_t flags, uint32_t fflags, intptr_t data, void* udata);
 	HttpResponse GetResponseByRequest(HttpRequest& request);
 	int GetStatusCode(HttpRequest& httpRequest);
-	std::string GetMessageBody(HttpRequest& httpRequest, int statusCode);
+	std::string GetMessageBody(HttpRequest& httpRequest, int statusCode) const;
+	std::string GetErrorPage(const std::string& targetDir) const;
+	bool IsServerSocket(const std::vector<int>& serverSockets, uintptr_t ident) const;
+	bool ReadFileAll(const std::string& filePath, std::string& result) const;
 private:
 	Conf mServerConf;
 };
