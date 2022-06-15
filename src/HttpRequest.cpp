@@ -73,9 +73,9 @@ bool HttpRequest::parseHttpMessageToMap(std::unordered_map<std::string, std::str
 	return (true);
 }
 
-std::string HttpRequest::getFieldByKey(const std::string &key)
+std::string HttpRequest::getFieldByKey(const std::string &key) const
 {
-	std::unordered_map<std::string, std::string>::iterator fieldIt = this->mHttpMessageMap.find(key);
+	std::unordered_map<std::string, std::string>::const_iterator fieldIt = this->mHttpMessageMap.find(key);
 	if (fieldIt == this->mHttpMessageMap.end())
 		return ("null");
 	return (*fieldIt).second;

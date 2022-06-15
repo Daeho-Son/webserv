@@ -15,7 +15,7 @@ public:
 	HttpRequest(const HttpRequest& other);
 	HttpRequest& operator=(const HttpRequest& other);
 	virtual ~HttpRequest();
-	std::string getFieldByKey(const std::string& key);
+	std::string getFieldByKey(const std::string& key) const;
 	void showAllFieldByKey();
 
 protected:
