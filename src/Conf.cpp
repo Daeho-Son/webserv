@@ -10,7 +10,7 @@ Conf::Conf()
 }
 
 Conf::Conf(const std::string &confFile)
-	:	mIsValid(true), 
+	:	mIsValid(true),
 		mClientBodySize(0),
 		mkeventSize(DEFAULT_KEVENT_SIZE),
 		mListenSize(DEFAULT_LISTEN_SIZE)
@@ -133,7 +133,7 @@ bool Conf::ParseServerInfo(std::ifstream& ifs)
 			return false;
 		}
 	}
-	
+
 	if (this->mClientBodySize <= 0)
 	{
 		this->mIsValid = false;
@@ -143,12 +143,12 @@ bool Conf::ParseServerInfo(std::ifstream& ifs)
 }
 
 // confInfo가 지역변수라서 사라지나?
-	
+
 bool Conf::ParseLocationInfo(std::ifstream& ifs, std::unordered_set<std::string>& hasLocation)
 {
 	this->mConfInfos.push_back(ConfInfo());
 	ConfInfo* confInfo = &(this->mConfInfos[this->mConfInfos.size() - 1]);
-	
+
 	// Parse location path
 	std::string location;
 	getline(ifs, location);
@@ -293,12 +293,19 @@ std::string Conf::GetRootedLocation(const std::string& targetDir) const
 	return root.append(targetDir.substr(targetIndex + location.size(), targetDir.size()));
 }
 
-std::string Conf::GetDefaultPage(const std::string& targetDir) const
+bool Conf::IsRootFolder(const std::string& targetDir) const
 {
 	size_t confInfoIndex = this->GetConfInfoIndexByTargetDirectory(targetDir);
 	if (confInfoIndex == this->mConfInfos.size())
-		return "";
-	std::string result = this->mConfInfos[confInfoIndex].GetRoot();
+		return false;
+
+	return mConfInfos[confInfoIndex].GetLocation() == targetDir;
+}
+
+std::string Conf::GetDefaultPage(const std::string& targetDir) const
+{
+	int confInfoIndex = GetConfInfoIndexByTargetDirectory(targetDir);
+	std::string result = GetRootedLocation(targetDir);
 	result.append("/");
 	result.append(mConfInfos[confInfoIndex].GetDefaultFile());
 	return result;

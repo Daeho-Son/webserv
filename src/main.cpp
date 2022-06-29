@@ -4,7 +4,7 @@
 
 int main(void)
 {
-	Conf conf("./conf/test_1.conf");
+	Conf conf("./conf/youpi.conf");
 	if (conf.IsValid() == true)
 	{
 		conf.PrintConfData();
@@ -14,7 +14,7 @@ int main(void)
 		std::cerr << "Invalid Conf" << std::endl;
 		return 1;
 	}
-		
+
 	HttpServer server(conf);
 
 	HttpResponse response(200, "Hello, world");

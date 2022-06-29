@@ -1,5 +1,5 @@
 CXX = c++
-CXXFLAGS = -std=c++98 -Wall -Wextra -Werror
+CXXFLAGS = -std=c++98 -Wall -Wextra -Werror -g -fsanitize=address
 DEBUG = -g -fsanitize=address
 
 NAME = webserv
@@ -8,9 +8,9 @@ SRC_DIR = ./src/
 SRC_FILE =	main.cpp 			\
 			Conf.cpp 			\
 			ConfInfo.cpp		\
-			HttpServer.cpp		\
 			HttpRequest.cpp		\
 			HttpResponse.cpp	\
+			HttpServer.cpp		\
 			util.cpp
 
 SRCS = $(addprefix $(SRC_DIR), $(SRC_FILE))

@@ -1,6 +1,7 @@
 #ifndef HTTP_SERVER_HPP
 # define HTTP_SERVER_HPP
 
+# include <exception>
 # include <fcntl.h>
 # include <fstream>
 # include <iostream>
@@ -9,9 +10,10 @@
 # include <sys/event.h> // kqueue()
 # include <sys/socket.h>
 # include <sys/stat.h>
-# include <unistd.h> // close()
-# include <unordered_map>
-# include <unordered_set>
+# include <unistd.h> // close(), execve()
+# include <utility>
+# include <map>
+# include <set>
 # include <vector>
 
 # include "Conf.hpp"
@@ -19,11 +21,16 @@
 # include "HttpResponse.hpp"
 
 # define CONF_DEFAULT_TARGET "/index.html"
+# define PIPE_READ_FD 0
+# define PIPE_WRITE_FD 1
+# define STDIN 0
+# define STDOUT 1
 
 using namespace ft;
 
 class HttpServer
 {
+	enum {MAX_READ_SIZE = 65527};
 public:
 	HttpServer(Conf& conf);
 	virtual ~HttpServer();
@@ -42,6 +49,7 @@ private:
 	std::string GetErrorPage(const std::string& targetDir) const;
 	bool IsServerSocket(const std::vector<int>& serverSockets, uintptr_t ident) const;
 	bool ReadFileAll(const std::string& filePath, std::string& result) const;
+	bool IsCGIRequest(const HttpRequest& request) const;
 private:
 	Conf mServerConf;
 };
