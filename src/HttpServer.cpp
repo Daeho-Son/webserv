@@ -11,7 +11,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 	std::vector<int> serverSockets;
 	std::vector<ServerInfo> serverInfos = this->mServerConf.GetServerInfos();
 	// <server socket, port index>
-	std::unordered_map<int, int> getServerIndexBySocket;
+	std::map<int, int> getServerIndexBySocket;
 	for (size_t i=0; i<serverInfos.size(); ++i)
 	{
 		int serverPort = serverInfos[i].GetPort();
@@ -73,9 +73,9 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 	}
 
 	// <client socket, server socket>
-	std::unordered_map<int, int> getServerSocketByClientSocket;
-	std::unordered_set<int> clients;
-	std::unordered_map<int, HttpResponse> responses;
+	std::map<int, int> getServerSocketByClientSocket;
+	std::set<int> clients;
+	std::map<int, HttpResponse> responses;
 	std::vector<struct kevent> changeList;
 	for (size_t i=0; i<serverSockets.size(); ++i)
 	{
@@ -118,7 +118,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				else
 				{
 					std::cout << "The client " << newEvent->ident << " sent a message.\n";
-					std::unordered_set<int>::iterator clientIt = clients.find(newEvent->ident);
+					std::set<int>::iterator clientIt = clients.find(newEvent->ident);
 					if (clientIt == clients.end()) {
 						std::cerr << "[ERROR] Request from Invalid client\n";
 						continue;

@@ -5,7 +5,7 @@
 # include <exception>
 # include <string>
 # include <sstream>
-# include <unordered_map>
+# include <map>
 # include <vector>
 
 class HttpRequest
@@ -22,8 +22,8 @@ protected:
 
 private:
 	HttpRequest();
-	bool parseHttpMessageToMap(std::unordered_map<std::string, std::string> &mHttpMessageMap, const std::string& httpMessage);
-	std::unordered_map<std::string, std::string> mHttpMessageMap;
+	bool parseHttpMessageToMap(std::map<std::string, std::string> &mHttpMessageMap, const std::string& httpMessage);
+	std::map<std::string, std::string> mHttpMessageMap;
 
 	class parseException : public std::exception
 	{

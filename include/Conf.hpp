@@ -7,7 +7,7 @@
 # include <vector>
 # include <sstream>
 # include <cstdlib>
-# include <unordered_set>
+# include <set>
 
 # include "ServerInfo.hpp"
 
@@ -36,8 +36,8 @@ public:
 
 private:
 	void Parse(const std::string& contFile);
-	bool ParseServerInfo(std::vector<std::string> confInfo, std::unordered_set<std::string> hasPort);
-	bool ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::string>& confInfo, size_t& confInfoIndex, std::unordered_set<std::string>& hasLocation);
+	bool ParseServerInfo(std::vector<std::string> confInfo, std::set<std::string> hasPort);
+	bool ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::string>& confInfo, size_t& confInfoIndex, std::set<std::string>& hasLocation);
 
 	size_t GetLocationInfoIndexByTargetDirectory(const std::string &targetDir, size_t serverInfoIndex) const;
 	size_t GetServerInfoIndexByPort(int port) const;

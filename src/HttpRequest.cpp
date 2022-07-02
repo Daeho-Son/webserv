@@ -37,7 +37,7 @@ static std::vector<std::string> split(const std::string& string, char delimiter)
 	return split_str;
 }
 
-bool HttpRequest::parseHttpMessageToMap(std::unordered_map<std::string, std::string>& mHttpMessageMap, const std::string& httpMessage)
+bool HttpRequest::parseHttpMessageToMap(std::map<std::string, std::string>& mHttpMessageMap, const std::string& httpMessage)
 {
 	std::vector<std::string> splitMessage = split(httpMessage, '\n');
 	if (splitMessage.size() == 0)
@@ -76,7 +76,7 @@ bool HttpRequest::parseHttpMessageToMap(std::unordered_map<std::string, std::str
 
 std::string HttpRequest::getFieldByKey(const std::string &key)
 {
-	std::unordered_map<std::string, std::string>::iterator fieldIt = this->mHttpMessageMap.find(key);
+	std::map<std::string, std::string>::iterator fieldIt = this->mHttpMessageMap.find(key);
 	if (fieldIt == this->mHttpMessageMap.end())
 		return ("null");
 	return (*fieldIt).second;

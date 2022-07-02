@@ -47,7 +47,7 @@ void Conf::Parse(const std::string& confFile)
 		this->mIsValid = false;
 		return ;
 	}
-	std::unordered_set<std::string> hasPort;
+	std::set<std::string> hasPort;
 	std::vector<std::string> confInfo;
 	std::string buf;
 	while (ifs.eof() == false)
@@ -76,7 +76,7 @@ static bool split(std::vector<std::string>& splitString, const std::string& stri
 	return true;
 }
 
-bool Conf::ParseServerInfo(std::vector<std::string> confInfo, std::unordered_set<std::string> hasPort)
+bool Conf::ParseServerInfo(std::vector<std::string> confInfo, std::set<std::string> hasPort)
 {
 	this->mServerInfos.push_back(ServerInfo());
 	ServerInfo* serverInfo = &(this->mServerInfos[this->mServerInfos.size() - 1]);
@@ -114,7 +114,7 @@ bool Conf::ParseServerInfo(std::vector<std::string> confInfo, std::unordered_set
 			return false;
 		}
 	}
-	std::unordered_set<std::string> hasLocation;
+	std::set<std::string> hasLocation;
 	for (; confInfoIndex < confInfo.size(); confInfoIndex++)
 	{
 		this->mIsValid = ParseLocationInfo(serverInfo, confInfo, confInfoIndex, hasLocation);
@@ -124,7 +124,7 @@ bool Conf::ParseServerInfo(std::vector<std::string> confInfo, std::unordered_set
 	return true;
 }
 
-bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::string>& confInfo, size_t& confInfoIndex, std::unordered_set<std::string>& hasLocation)
+bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::string>& confInfo, size_t& confInfoIndex, std::set<std::string>& hasLocation)
 {
 	// Parse location path
 	LocationInfo locationInfo;
