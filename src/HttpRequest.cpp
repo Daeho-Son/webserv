@@ -58,6 +58,7 @@ bool HttpRequest::parseHttpMessageToMap(std::unordered_map<std::string, std::str
 	{
 		if (splitMessage[i].length() == 1)
 			break;
+		
 		std::vector<std::string> data = split(splitMessage[i], ':');
 		std::string key = "";
 		unsigned int j;

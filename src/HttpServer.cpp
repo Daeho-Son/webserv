@@ -8,13 +8,17 @@ HttpServer::HttpServer(Conf& conf)
 int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여야 합니다.
 {
 	// make server sockets
-	const std::vector<int>& serverPorts = this->mServerConf.GetPorts();
 	std::vector<int> serverSockets;
-	for (size_t i=0; i<serverPorts.size(); ++i)
+	std::vector<ServerInfo> serverInfos = this->mServerConf.GetServerInfos();
+	// <server socket, port index>
+	std::unordered_map<int, int> getServerIndexBySocket;
+	for (size_t i=0; i<serverInfos.size(); ++i)
 	{
+		int serverPort = serverInfos[i].GetPort();
 		serverSockets.push_back(socket(AF_INET, SOCK_STREAM, 0));
 		int& serverSocket = serverSockets[serverSockets.size()-1];
-		std::cout << "server socket = " << serverSocket << ", server ports = " << serverPorts[i] << "\n";
+		getServerIndexBySocket[serverSocket] = i;
+		std::cout << "server socket = " << serverSocket << ", server ports = " << serverPort << "\n";
 		if (serverSocket < 0)
 		{
 			assert(serverSocket >= 0);
@@ -26,7 +30,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		memset(&serverAddress, 0, sizeof(sockaddr_in));
 		serverAddress.sin_family = AF_INET;
 		serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-		serverAddress.sin_port = htons(serverPorts[i]); // TODO: use Conf
+		serverAddress.sin_port = htons(serverPort); // TODO: use Conf
 
 		int bsize = 0;
 		int rn;
@@ -68,6 +72,8 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		return 1;
 	}
 
+	// <client socket, server socket>
+	std::unordered_map<int, int> getServerSocketByClientSocket;
 	std::unordered_set<int> clients;
 	std::unordered_map<int, HttpResponse> responses;
 	std::vector<struct kevent> changeList;
@@ -102,6 +108,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						std::cerr << "[ERROR] accept() failed.\n";
 						continue;
 					}
+					getServerSocketByClientSocket[newClientSocket] = newEvent->ident;
 					clients.insert(newClientSocket);
 					fcntl(newClientSocket, F_SETFL, O_NONBLOCK);
 					this->addEvent(changeList, newClientSocket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
@@ -116,8 +123,11 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						std::cerr << "[ERROR] Request from Invalid client\n";
 						continue;
 					}
-					char buffer[this->mServerConf.GetClientBodySize()];
-					int readSize = read(*clientIt, buffer, this->mServerConf.GetClientBodySize());
+					size_t serverIndex = getServerIndexBySocket[getServerSocketByClientSocket[newEvent->ident]];
+					ServerInfo serverInfo = mServerConf.GetServerInfos()[serverIndex];
+					int port = serverInfo.GetPort();
+					char buffer[1024]; // TODO: 
+					int readSize = read(*clientIt, buffer, 1024); // TODO:
 					if (readSize <= 0)
 					{
 						if (readSize == -1)
@@ -132,7 +142,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						HttpRequest httpRequest(buffer);
 						std::string httpMethod = httpRequest.getFieldByKey("MethodToken");
 						
-						if (this->mServerConf.IsValidHttpMethod(httpRequest.getFieldByKey("RequestTarget"), httpMethod) == false)
+						if (this->mServerConf.IsValidHttpMethod(httpRequest.getFieldByKey("RequestTarget"), port, httpMethod) == false)
 						{
 							statusCode = 405;
 							messageBody = "";
@@ -140,7 +150,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						else if (httpMethod == "GET")
 						{
 							// Check the target is directory or not.
-							std::string rootedTarget = this->mServerConf.GetRootedLocation(httpRequest.getFieldByKey("RequestTarget"));
+							std::string rootedTarget = this->mServerConf.GetRootedLocation(httpRequest.getFieldByKey("RequestTarget"), port);
 							struct stat myStat;
 							bool isDirectory = false;
 							bool isValid = (stat(rootedTarget.c_str(), &myStat) == 0);
@@ -150,13 +160,13 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 								// 폴더면 디폴트 페이지 받아오고
 								if (isDirectory)
 								{
-									bool success = ReadFileAll(this->mServerConf.GetDefaultPage(httpRequest.getFieldByKey("RequestTarget")), messageBody); // TODO: 최적화
+									bool success = ReadFileAll(this->mServerConf.GetDefaultPage(httpRequest.getFieldByKey("RequestTarget"), port), messageBody); // TODO: 최적화
 									if (success)
 										statusCode = 200;
 									else
 									{
 										statusCode = 404;
-										messageBody = this->GetErrorPage(httpRequest.getFieldByKey("RequestTarget")); // TODO: targetDir->rootedTarget 최적화
+										messageBody = this->GetErrorPage(httpRequest.getFieldByKey("RequestTarget"), port); // TODO: targetDir->rootedTarget 최적화
 									}
 								}
 								else
@@ -169,14 +179,14 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 									else
 									{
 										statusCode = 404;
-										messageBody = this->GetErrorPage(httpRequest.getFieldByKey("RequestTarget")); // TODO: targetDir->rootedTarget 최적화
+										messageBody = this->GetErrorPage(httpRequest.getFieldByKey("RequestTarget"), port); // TODO: targetDir->rootedTarget 최적화
 									}
 								}
 							}
 							else
 							{
 								statusCode = 404;
-								messageBody = this->GetErrorPage(httpRequest.getFieldByKey("RequestTarget")); // TODO: targetDir->rootedTarget 최적화
+								messageBody = this->GetErrorPage(httpRequest.getFieldByKey("RequestTarget"), port); // TODO: targetDir->rootedTarget 최적화
 							}
 							
 						}
@@ -193,11 +203,11 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						else if (httpMethod == "PUT")
 						{
 							std::cout << "PUT request is pending..\n";
-							std::string target = this->mServerConf.GetRootedLocation(httpRequest.getFieldByKey("RequestTarget"));
+							std::string target = this->mServerConf.GetRootedLocation(httpRequest.getFieldByKey("RequestTarget"), port);
 							if (target == "")
 							{
 								statusCode = 400; // TODO: Remove literal
-								messageBody = GetErrorPage(httpRequest.getFieldByKey("RequestTarget"));
+								messageBody = GetErrorPage(httpRequest.getFieldByKey("RequestTarget"), port);
 								std::cerr << "There is no RequestTarget.\n";
 							}
 							std::ifstream fin(target);
@@ -310,18 +320,6 @@ static std::string GetTargetFile(HttpRequest& httpRequest)
 	return targetFile;
 }
 
-int HttpServer::GetStatusCode(HttpRequest& httpRequest)
-{
-	// 폴더인지 파일인지 확인
-	// 해당 장소에 폴더가 없으면 파일이라고 생각
-	std::string rootedTarget = this->mServerConf.GetRootedLocation(httpRequest.getFieldByKey("RequestTarget"));
-	struct stat myStat;
-	bool isValid = (stat(rootedTarget.c_str(), &myStat) == 0);
-	if (isValid == false)
-		return 404;
-	return 200;
-}
-
 std::string HttpServer::GetMessageBody(HttpRequest& httpRequest, int statusCode) const
 {
 	std::stringstream ss;
@@ -344,10 +342,10 @@ std::string HttpServer::GetMessageBody(HttpRequest& httpRequest, int statusCode)
 	return ss.str();
 }
 
-std::string HttpServer::GetErrorPage(const std::string& targetDir) const
+std::string HttpServer::GetErrorPage(const std::string& targetDir, int port) const
 {
 	std::stringstream ss;
-	std::string errorPagePath = this->mServerConf.GetDefaultErrorPage(targetDir); // TODO: use conf
+	std::string errorPagePath = this->mServerConf.GetDefaultErrorPage(targetDir, port); // TODO: use conf
 	std::ifstream fin(errorPagePath);
 	if (fin.is_open() == false)
 	{
