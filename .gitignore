@@ -1,6 +1,8 @@
 # Files
 *.o
 webserv
+dason.md
 
 # Folders
 .vscode
+webserv.dSYM
