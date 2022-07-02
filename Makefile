@@ -5,12 +5,13 @@ DEBUG = -g -fsanitize=address
 NAME = webserv
 INCLUDE = -I ./include
 SRC_DIR = ./src/
-SRC_FILE =	main.cpp 			\
-			Conf.cpp 			\
-			ConfInfo.cpp		\
-			HttpServer.cpp		\
+SRC_FILE =	Conf.cpp 			\
 			HttpRequest.cpp		\
 			HttpResponse.cpp	\
+			HttpServer.cpp		\
+			LocationInfo.cpp	\
+			main.cpp			\
+			ServerInfo.cpp		\
 			util.cpp
 
 SRCS = $(addprefix $(SRC_DIR), $(SRC_FILE))
@@ -35,4 +36,10 @@ fclean : clean
 
 re : fclean all
 
-.PHONY : all debug clean fclean re
+test :
+	bash ./scripts/test.sh
+
+done :
+	bash ./scripts/done.sh
+
+.PHONY : all debug clean fclean re test done
