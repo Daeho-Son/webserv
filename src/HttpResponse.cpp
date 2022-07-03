@@ -4,7 +4,6 @@ using namespace ft;
 
 HttpResponse::HttpResponse()
 {
-	std::cerr << "You should not instantiate HttpResponse by default initializer!\n";
 }
 
 HttpResponse::HttpResponse(int statusCode, const std::string& body)
@@ -15,6 +14,49 @@ HttpResponse::HttpResponse(int statusCode, const std::string& body)
 	this->mConnection = "close";
 	this->mContentType = "text/html";
 	this->mBody = body;
+}
+
+HttpResponse::HttpResponse(const std::string& cgiData)
+{
+	std::stringstream ss;
+	std::string buffer;
+	ss << cgiData;
+	std::vector<std::string> splitData;
+	while (true)
+	{
+		getline(ss, buffer);
+		splitData.push_back(buffer);
+		if (ss.eof() || buffer.length() <= 1)
+			break;
+	}
+
+	// Set Http Header
+	std::stringstream tss;
+	for (size_t i=0; i<splitData.size(); ++i)
+	{
+		size_t delimPos = splitData[i].find(':');
+		if (delimPos == splitData[i].npos)
+			break;
+		std::string key = splitData[i].substr(0, delimPos);
+		if (key == "Status")
+		{
+			this->mStatusCode = strtod(splitData[i].substr(delimPos+2, 3).c_str(), NULL);
+		}
+		else if (key == "Content-Type")
+		{
+			this->mContentType =  splitData[i].substr(delimPos+2);
+		}
+	}
+	this->mHttpVersion = "HTTP/1.1";
+	this->mDate = GetHttpFormDate();
+	this->mConnection = "close";
+
+	// Get Body
+	size_t bodyPos = cgiData.find("\r\n\r\n") + 4;
+	if (bodyPos > cgiData.length())
+	{
+		this->mBody = cgiData.substr(bodyPos);
+	}
 }
 
 HttpResponse::HttpResponse(const HttpResponse& other)

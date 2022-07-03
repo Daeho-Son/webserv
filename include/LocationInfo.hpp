@@ -16,13 +16,13 @@ public:
 	void SetClientBodySize(int clientBodySize);
 	void SetCgi(const std::vector<std::string>& cgi);
 
-	std::string GetLocation() const;
-	std::vector<std::string> GetAcceptedMethods() const;
+	const std::string& GetLocation() const;
+	const std::vector<std::string>& GetAcceptedMethods() const;
 	const std::string& GetRoot() const;
 	const std::string& GetDefaultFile() const;
 	const std::string& GetDefaultErrorFile() const;
 	int GetClientBodySize() const;
-	std::vector<std::string> GetCgi() const;
+	const std::vector<std::string>& GetCgi() const;
 
 private:
 	std::vector<std::string> mAcceptedMethods;

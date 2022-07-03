@@ -1,25 +1,27 @@
 #include "HttpRequest.hpp"
 #include <iostream>
 
+static size_t hexToInt(const std::string& hex);
+static inline std::string& ltrim(std::string& s, const char* t = " \t\n\r\f\v");
+static inline std::string& rtrim(std::string& s, const char* t = " \t\n\r\f\v");
+static inline std::string& trim(std::string& s, const char* t = " \t\n\r\f\v");
+static HttpRequest::eMethod GetMethodByString(const std::string& str);
+
 HttpRequest::HttpRequest()
 {
-}
-
-HttpRequest::HttpRequest(const std::string& httpMessage)
-{
-	if (parseHttpMessageToMap(mHttpMessageMap, httpMessage) == false)
-		throw parseException();
-
+	this->mParseStatus = REQUEST_LINE;
 }
 
 HttpRequest::HttpRequest(const HttpRequest& other)
 {
-	this->mHttpMessageMap = other.mHttpMessageMap;
+	*this = other;
 }
 
 HttpRequest& HttpRequest::operator=(const HttpRequest& other)
 {
-	this->mHttpMessageMap = other.mHttpMessageMap;
+	this->mParseStatus = other.mParseStatus;
+	this->mBufferCache = other.mBufferCache;
+	this->mHeader = other.mHeader;
 	return *this;
 }
 
@@ -27,57 +29,219 @@ HttpRequest::~HttpRequest()
 {
 }
 
-static std::vector<std::string> split(const std::string& string, char delimiter)
+bool HttpRequest::Parse(std::string& buf)
 {
-	std::vector<std::string> split_str;
-	std::stringstream ss(string);
-	std::string temp;
-	while (getline(ss, temp, delimiter))
-		split_str.push_back(temp);
-	return split_str;
+	// Load cached data
+	buf = mBufferCache + buf;
+
+	if (mParseStatus == DONE) return false;
+	if (mParseStatus == REQUEST_LINE) parseRequestLine(buf);
+	if (mParseStatus == HEADER) parseHeader(buf);
+	if (mParseStatus == BODY) parseBody(buf);
+	// Cache remained buffer
+	if (mParseStatus != DONE) mBufferCache = buf;
+	return true;
 }
 
-bool HttpRequest::parseHttpMessageToMap(std::map<std::string, std::string>& mHttpMessageMap, const std::string& httpMessage)
+bool HttpRequest::parseRequestLine(std::string& buf)
 {
-	std::vector<std::string> splitMessage = split(httpMessage, '\n');
-	if (splitMessage.size() == 0)
+	if (mParseStatus != REQUEST_LINE) throw InvalidParseStatus();
+	size_t newlinePos = buf.find("\r\n");
+	if (newlinePos == buf.npos) return false;// request line이 완성되지 못한채 들어왔을 때
+
+	std::string requestLine = buf.substr(0, newlinePos);
+	size_t firstSpace = requestLine.find(' ');
+	size_t lastSpace = requestLine.rfind(' ');
+	if (firstSpace == lastSpace)
 	{
-		std::cout << "Start line이 존재하지 않습니다." << std::endl;
-		return (false);
+		std::cerr << "Request: Error: InvalidRequestLine: " << requestLine << std::endl;
+		throw InvalidRequestLine();
 	}
-	std::vector<std::string> requestLine = split(splitMessage[0], ' ');
-	if (requestLine.size() != 3)
+
+	mMethod = GetMethodByString(requestLine.substr(0, firstSpace));
+	mTarget = requestLine.substr(firstSpace+1, lastSpace-firstSpace-1);
+	mHttpVersion = requestLine.substr(lastSpace+1);
+
+	// Caching...
+	buf.erase(0, newlinePos+2);
+
+	mParseStatus = HEADER;
+	return true;
+}
+
+// If parsing failed, return false
+bool HttpRequest::parseHeader(std::string& buf)
+{
+	if (mParseStatus != HEADER) throw InvalidParseStatus();
+	size_t delimPos = buf.find("\r\n\r\n");
+	if (delimPos == buf.npos) return false;
+
+	std::stringstream ss(buf.substr(0, delimPos));
+
+	std::string line;
+	while (getline(ss, line))
 	{
-		std::cout << "Start line에 잘못된 값이 입력되었습니다." << std::endl;
-		return (false);
+		if (line.length() == 1) continue; // if line is "\r", continue
+		size_t colonPos = line.find(":");
+		if (colonPos == line.npos || colonPos == line.length()-2)
+			continue;
+		std::string value = line.substr(colonPos+1);
+		mHeader.insert(make_pair(line.substr(0, colonPos), trim(value)));
 	}
-	mHttpMessageMap["MethodToken"] = requestLine[0];
-	mHttpMessageMap["RequestTarget"] = requestLine[1];
-	mHttpMessageMap["ProtocolVersion"] = requestLine[2].substr(0, 8);
-	for (unsigned int i = 1; i < splitMessage.size(); i++)
+	std::map<std::string, std::string>::iterator it;
+	if ((it = mHeader.find("Transfer-Encoding")) != mHeader.end() && (*it).second == "chunked")
 	{
-		if (splitMessage[i].length() == 1)
-			break;
-		
-		std::vector<std::string> data = split(splitMessage[i], ':');
-		std::string key = "";
-		unsigned int j;
-		for (j = 1; j < data.size() - 1; j++)
-			key = key + data[j] + ":";
-		key = key + data[j].substr(0, data[j].size() - 1);
-		mHttpMessageMap[data[0]] = key.substr(1, key.size() - 1);
+		this->mParseStatus = BODY;
+		mBodyType = CHUNKED;
 	}
-	if (httpMessage.find("\n\n") == httpMessage.npos)
-		mHttpMessageMap["Body"] = "null";
+	else if ((it = mHeader.find("Content-Length")) != mHeader.end() && (*it).second != "0")
+	{
+		this->mParseStatus = BODY;
+		mBodyType = CONTENT;
+		mContentLength = strtod((*it).second.c_str(), NULL);
+		if (mContentLength > 0) throw BadContentLength();
+	}
 	else
-		mHttpMessageMap["Body"] = httpMessage.substr(httpMessage.find("\n\n") + 2, httpMessage.size() - httpMessage.find("\n\n") - 2);
-	return (true);
+	{
+		this->mParseStatus = DONE;
+	}
+
+	buf.erase(0, delimPos+4);
+	return true;
 }
 
-std::string HttpRequest::getFieldByKey(const std::string &key)
+bool HttpRequest::parseBody(std::string& buf)
 {
-	std::map<std::string, std::string>::iterator fieldIt = this->mHttpMessageMap.find(key);
-	if (fieldIt == this->mHttpMessageMap.end())
+	if (mParseStatus != BODY) throw InvalidParseStatus();
+
+	if (mBodyType == CHUNKED) parseChunked(buf);
+	else if (mBodyType == CONTENT) parseContent(buf);
+	else throw InvalidParseStatus();
+
+	return true;
+}
+
+bool HttpRequest::parseChunked(std::string& buf)
+{
+	while (true)
+	{
+		size_t chunkedLengthPos = buf.find("\r\n");
+		if (chunkedLengthPos == buf.npos) return false;
+		size_t chunkedLength = hexToInt(buf.substr(0, chunkedLengthPos));
+		std::cout << "chunkedLengthStr: " << buf.substr(0, chunkedLengthPos) << "\nchunkedLength: " << chunkedLength << std::endl;
+		if (chunkedLengthPos == 0)
+			std::cout << "chunked buf: " << buf << "\n";
+		if (chunkedLength == 0)
+		{
+			mParseStatus = DONE;
+			break;
+		}
+		if ((buf.length() - chunkedLengthPos) >= chunkedLength + 4) // 청크 세트가 전부 들어온 경우
+		{
+			mBody.append(buf.substr(chunkedLengthPos+2, chunkedLength));
+			buf.erase(0, chunkedLengthPos+chunkedLength+4);
+		}
+		else // 청크 세트가 다 들어오지 않았다면 파싱을 하지 않는다.
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool HttpRequest::parseContent(std::string& buf)
+{
+	if (buf.length() >= mContentLength+4)
+	{
+		mBody = buf.substr(0, mContentLength);
+		mParseStatus = DONE;
+		return true;
+	}
+	return false;
+}
+
+std::string HttpRequest::GetFieldByKey(const std::string &key) const // TODO: ref
+{
+	std::map<std::string, std::string>::const_iterator fieldIt = this->mHeader.find(key);
+	if (fieldIt == this->mHeader.end())
 		return ("null");
 	return (*fieldIt).second;
+}
+
+HttpRequest::eParseStatus HttpRequest::GetParseStatus() const
+{
+	return mParseStatus;
+}
+
+HttpRequest::eMethod HttpRequest::GetMethod() const
+{
+	return mMethod;
+}
+
+const std::string& HttpRequest::GetBody() const
+{
+	return mBody;
+}
+
+std::string HttpRequest::GetMethodStringByEnum(HttpRequest::eMethod e) const
+{
+	if (e == HttpRequest::GET)
+		return std::string("GET");
+	if (e == HttpRequest::POST)
+		return std::string("POST");
+	if (e == HttpRequest::PUT)
+		return std::string("PUT");
+	if (e == HttpRequest::DELETE)
+		return std::string("DELETE");
+	if (e == HttpRequest::HEAD)
+		return std::string("HEAD");
+	return std::string("NOT_VALID");
+}
+
+const std::string& HttpRequest::GetHttpTarget() const
+{
+	return mTarget;
+}
+
+static size_t hexToInt(const std::string& hex)
+{
+    size_t result;
+    std::istringstream iss(hex);
+    iss >> std::hex >> result;
+
+    return result;
+}
+
+// trim from left
+static inline std::string& ltrim(std::string& s, const char* t)
+{
+	s.erase(0, s.find_first_not_of(t));
+	return s;
+}
+// trim from right
+static inline std::string& rtrim(std::string& s, const char* t)
+{
+	s.erase(s.find_last_not_of(t) + 1);
+	return s;
+}
+// trim from left & right
+static inline std::string& trim(std::string& s, const char* t)
+{
+	return ltrim(rtrim(s, t), t);
+}
+
+static HttpRequest::eMethod GetMethodByString(const std::string& str)
+{
+	if (str == "GET")
+		return HttpRequest::GET;
+	if (str == "POST")
+		return HttpRequest::POST;
+	if (str == "PUT")
+		return HttpRequest::PUT;
+	if (str == "DELETE")
+		return HttpRequest::DELETE;
+	if (str == "HEAD")
+		return HttpRequest::HEAD;
+	else
+		return HttpRequest::NOT_VALID;
 }

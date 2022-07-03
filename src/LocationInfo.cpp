@@ -35,12 +35,12 @@ void LocationInfo::SetCgi(const std::vector<std::string>& cgi)
 	this->mCgi = cgi;
 }
 
-std::string LocationInfo::GetLocation() const
+const std::string& LocationInfo::GetLocation() const
 {
 	return this->mLocation;
 }
 
-std::vector<std::string> LocationInfo::GetAcceptedMethods() const
+const std::vector<std::string>& LocationInfo::GetAcceptedMethods() const
 {
 	return this->mAcceptedMethods;
 }
@@ -65,7 +65,7 @@ int LocationInfo::GetClientBodySize() const
 	return this->mClientBodySize;
 }
 
-std::vector<std::string> LocationInfo::GetCgi() const
+const std::vector<std::string>& LocationInfo::GetCgi() const
 {
 	return this->mCgi;
 }

@@ -2,12 +2,12 @@
 
 void ServerInfo::SetServerName(const std::string &serverName)
 {
-	this->mServerName = serverName;
+	mServerName = serverName;
 }
 
 void ServerInfo::SetPort(const int &port)
 {
-	this->mPort = port;
+	mPort = port;
 }
 
 const std::string& ServerInfo::GetServerName() const
@@ -22,7 +22,7 @@ const int& ServerInfo::GetPort() const
 
 void ServerInfo::AddLocationInfo(const LocationInfo &locationInfo)
 {
-	this->mLocationInfos.push_back(locationInfo);
+	mLocationInfos.push_back(locationInfo);
 }
 
 const std::vector<LocationInfo>& ServerInfo::GetLocationInfos() const

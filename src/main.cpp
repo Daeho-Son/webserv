@@ -14,7 +14,7 @@ int main(void)
 		std::cerr << "Invalid Conf" << std::endl;
 		return 1;
 	}
-		
+
 	HttpServer server(conf);
 
 	HttpResponse response(200, "Hello, world");

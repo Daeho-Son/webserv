@@ -4,6 +4,7 @@
 # include <ctime>
 # include <iostream>
 # include <sstream>
+# include <stdlib.h>
 # include <vector>
 
 # include "util.hpp"
@@ -17,6 +18,7 @@ namespace ft
 		HttpResponse();
 		HttpResponse(const HttpResponse& other);
 		HttpResponse(int statusCode, const std::string& body);
+		HttpResponse(const std::string& rawData);
 		virtual ~HttpResponse();
 		HttpResponse& operator= (const HttpResponse& other);
 

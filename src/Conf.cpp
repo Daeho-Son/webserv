@@ -2,33 +2,33 @@
 
 Conf::Conf()
 {
-	this->mIsValid = true;
-	this->mListenSize = DEFAULT_LISTEN_SIZE;
-	this->mkeventSize = DEFAULT_KEVENT_SIZE;
+	mIsValid = true;
+	mListenSize = DEFAULT_LISTEN_SIZE;
+	mkeventSize = DEFAULT_KEVENT_SIZE;
 }
 
 Conf::Conf(const std::string &confFile)
+	:	mIsValid(true),
+		mkeventSize(DEFAULT_KEVENT_SIZE),
+		mListenSize(DEFAULT_LISTEN_SIZE)
 {
-	this->mIsValid = true;
-	this->mkeventSize = DEFAULT_KEVENT_SIZE;
-	this->mListenSize = DEFAULT_LISTEN_SIZE;
 	Parse(confFile);
 }
 
 Conf::Conf(const Conf &other)
 {
-	this->mServerInfos = other.GetServerInfos();
-	this->mIsValid = other.IsValid();
-	this->mkeventSize = other.GetKeventsSize();
-	this->mListenSize = other.GetListenSize();
+	mServerInfos = other.GetServerInfos();
+	mIsValid = other.IsValid();
+	mkeventSize = other.GetKeventsSize();
+	mListenSize = other.GetListenSize();
 }
 
 Conf& Conf::operator=(const Conf &other)
 {
-	this->mServerInfos = other.GetServerInfos();
-	this->mIsValid = other.IsValid();
-	this->mkeventSize = other.GetKeventsSize();
-	this->mListenSize = other.GetListenSize();
+	mServerInfos = other.GetServerInfos();
+	mIsValid = other.IsValid();
+	mkeventSize = other.GetKeventsSize();
+	mListenSize = other.GetListenSize();
 	return *this;
 }
 
@@ -44,7 +44,7 @@ void Conf::Parse(const std::string& confFile)
 	ifs.open(confFile);
 	if (ifs.is_open() == false)
 	{
-		this->mIsValid = false;
+		mIsValid = false;
 		return ;
 	}
 	std::set<std::string> hasPort;
@@ -55,14 +55,14 @@ void Conf::Parse(const std::string& confFile)
 		getline(ifs, buf);
 		if (buf == "::eosb")
 		{
-			this->mIsValid = ParseServerInfo(confInfo, hasPort);
+			mIsValid = ParseServerInfo(confInfo, hasPort);
 			confInfo.clear();
 		}
 		else
 			confInfo.push_back(buf);
 	}
-	if (this->mServerInfos.size() == 0)
-		this->mIsValid = false;
+	if (mServerInfos.size() == 0)
+		mIsValid = false;
 	ifs.close();
 }
 
@@ -78,8 +78,8 @@ static bool split(std::vector<std::string>& splitString, const std::string& stri
 
 bool Conf::ParseServerInfo(std::vector<std::string> confInfo, std::set<std::string> hasPort)
 {
-	this->mServerInfos.push_back(ServerInfo());
-	ServerInfo* serverInfo = &(this->mServerInfos[this->mServerInfos.size() - 1]);
+	mServerInfos.push_back(ServerInfo());
+	ServerInfo* serverInfo = &(mServerInfos[mServerInfos.size() - 1]);
 
 	size_t confInfoIndex = 0;
 	for (; confInfoIndex < confInfo.size(); confInfoIndex++)
@@ -93,7 +93,7 @@ bool Conf::ParseServerInfo(std::vector<std::string> confInfo, std::set<std::stri
 		split(splitString, confInfo[confInfoIndex], ' ');
 		if (splitString.size() != 2)
 		{
-			this->mIsValid = false;
+			mIsValid = false;
 			return false;
 		}
 		if (splitString[0] == "server_name")
@@ -102,7 +102,7 @@ bool Conf::ParseServerInfo(std::vector<std::string> confInfo, std::set<std::stri
 		{
 			if (hasPort.find(splitString[1]) != hasPort.end())
 			{
-				this->mIsValid = false;
+				mIsValid = false;
 				return false;
 			}
 			hasPort.insert(splitString[1]);
@@ -110,15 +110,15 @@ bool Conf::ParseServerInfo(std::vector<std::string> confInfo, std::set<std::stri
 		}
 		else
 		{
-			this->mIsValid = false;
+			mIsValid = false;
 			return false;
 		}
 	}
 	std::set<std::string> hasLocation;
 	for (; confInfoIndex < confInfo.size(); confInfoIndex++)
 	{
-		this->mIsValid = ParseLocationInfo(serverInfo, confInfo, confInfoIndex, hasLocation);
-		if (this->mIsValid == false)
+		mIsValid = ParseLocationInfo(serverInfo, confInfo, confInfoIndex, hasLocation);
+		if (mIsValid == false)
 			return false;
 	}
 	return true;
@@ -134,7 +134,7 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 		splitLocation[0] != "location" ||
 		hasLocation.find(splitLocation[1]) != hasLocation.end())
 	{
-		this->mIsValid = false;
+		mIsValid = false;
 		return false;
 	}
 	hasLocation.insert(splitLocation[1]);
@@ -150,13 +150,13 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 		split(splitString, confInfo[confInfoIndex], ' ');
 		if (splitString.size() != 2)
 		{
-			this->mIsValid = false;
+			mIsValid = false;
 			return false;
 		}
 		if (splitString[0] == "accepted_method")
 		{
 			if (locationInfo.GetAcceptedMethods().size() != 0)
-				this->mIsValid = false;
+				mIsValid = false;
 			std::vector<std::string> methods;
 			split(methods, splitString[1], '|');
 			locationInfo.SetAcceptedMethods(methods);
@@ -165,7 +165,7 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 		{
 			if (locationInfo.GetRoot() != "")
 			{
-				this->mIsValid = false;
+				mIsValid = false;
 				return false;
 			}
 			locationInfo.SetRoot(splitString[1]);
@@ -174,7 +174,7 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 		{
 			if (locationInfo.GetDefaultFile() != "")
 			{
-				this->mIsValid = false;
+				mIsValid = false;
 				return false;
 			}
 			locationInfo.SetDefaultFile(splitString[1]);
@@ -187,7 +187,7 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 		{
 			if (locationInfo.GetCgi().size() != 0)
 			{
-				this->mIsValid = false;
+				mIsValid = false;
 				return false;
 			}
 			std::vector<std::string> cgis;
@@ -196,7 +196,7 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 		}
 		else // Unknown keyword
 		{
-			this->mIsValid = false;
+			mIsValid = false;
 			return false;
 		}
 	}
@@ -205,16 +205,16 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 		locationInfo.GetDefaultFile() == "" ||
 		locationInfo.GetClientBodySize() <= 0)
 	{
-		this->mIsValid = false;
+		mIsValid = false;
 		return false;
 	}
 	std::string root = locationInfo.GetRoot();
 	std::ifstream fIn(root + "/" + locationInfo.GetDefaultFile());
 	if (fIn.is_open() == false)
-		this->mIsValid = false;
+		mIsValid = false;
 	fIn.open(root + "/" + locationInfo.GetDefaultErrorFile());
 	if (fIn.is_open() == false)
-		this->mIsValid = false;
+		mIsValid = false;
 	fIn.close();
 	serverInfo->AddLocationInfo(locationInfo);
 	return true;
@@ -222,12 +222,12 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 
 const std::vector<ServerInfo>& Conf::GetServerInfos() const
 {
-	return this->mServerInfos;
+	return mServerInfos;
 }
 
 bool Conf::IsValid() const
 {
-	return this->mIsValid;
+	return mIsValid;
 }
 
 int Conf::GetKeventsSize() const
@@ -243,10 +243,12 @@ int Conf::GetListenSize() const
 // 에러면 confinfos.size() 리턴
 size_t Conf::GetLocationInfoIndexByTargetDirectory(const std::string& targetDir, size_t serverInfoIndex) const
 {
-	std::vector<LocationInfo> locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
+	if (mServerInfos.size() <= serverInfoIndex)
+		return SIZE_T_MAX;
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
 	for (size_t i = locationInfos.size() - 1; i >= 0; i--)
 	{
-		std::string location = locationInfos[i].GetLocation();
+		const std::string& location = locationInfos[i].GetLocation();
 		size_t targetIndex = targetDir.find(location);
 		if (targetIndex == 0)
 			return i;
@@ -257,47 +259,64 @@ size_t Conf::GetLocationInfoIndexByTargetDirectory(const std::string& targetDir,
 size_t Conf::GetServerInfoIndexByPort(int port) const
 {
 	size_t serverInfoIndex = 0;
-	for (; serverInfoIndex < this->mServerInfos.size(); serverInfoIndex++)
+	for (; serverInfoIndex < mServerInfos.size(); serverInfoIndex++)
 	{
-		if (this->mServerInfos[serverInfoIndex].GetPort() == port)
+		if (mServerInfos[serverInfoIndex].GetPort() == port)
 			return serverInfoIndex;
 	}
-	return this->mServerInfos.size();
+	return mServerInfos.size();
 }
 
 std::string Conf::GetRootedLocation(const std::string& targetDir, int port) const
 {
 	size_t serverInfoIndex = GetServerInfoIndexByPort(port);
-	size_t confInfoIndex = this->GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
-	std::vector<LocationInfo> locationInfos = this->mServerInfos[serverInfoIndex].GetLocationInfos();
-	if (confInfoIndex == locationInfos.size())
+	if (serverInfoIndex == mServerInfos.size())
 		return "";
-
-	std::string location = locationInfos[confInfoIndex].GetLocation();
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
+	size_t locationInfoIndex = GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
+	if (locationInfoIndex == locationInfos.size() || locationInfoIndex == SIZE_T_MAX)
+		return "";
+	const std::string& location = locationInfos[locationInfoIndex].GetLocation();
 	size_t targetIndex = targetDir.find(location);
-	std::string root = locationInfos[confInfoIndex].GetRoot();
+	std::string root = locationInfos[locationInfoIndex].GetRoot();
 	root.append("/");
 	return root.append(targetDir.substr(targetIndex + location.size(), targetDir.size()));
+}
+
+bool Conf::IsRootFolder(const std::string& targetDir, int port) const
+{
+	size_t serverInfoIndex = GetServerInfoIndexByPort(port);
+	if (serverInfoIndex == mServerInfos.size())
+		return false;
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
+	size_t locationInfoIndex = GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
+	if (locationInfoIndex == locationInfos.size() || locationInfoIndex == SIZE_T_MAX)
+		return false;
+	const std::string& location = locationInfos[locationInfoIndex].GetLocation();
+	return location == targetDir;
 }
 
 std::string Conf::GetDefaultPage(const std::string& targetDir, int port) const
 {
 	size_t serverInfoIndex = GetServerInfoIndexByPort(port);
-	size_t confInfoIndex = this->GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
-	std::vector<LocationInfo> locationInfos = this->mServerInfos[serverInfoIndex].GetLocationInfos();
-	if (confInfoIndex == locationInfos.size())
+	if (serverInfoIndex == mServerInfos.size())
 		return "";
-	std::string result = locationInfos[confInfoIndex].GetRoot();
+	size_t locationInfoIndex = GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
+	if (locationInfoIndex == locationInfos.size())
+		return "";
+	std::string result = GetRootedLocation(targetDir, port);
 	result.append("/");
-	result.append(locationInfos[confInfoIndex].GetDefaultFile());
+	result.append(locationInfos[locationInfoIndex].GetDefaultFile());
+	std::cout << "result: " << result << std::endl;
 	return result;
 }
 
 std::string Conf::GetDefaultErrorPage(const std::string& targetDir, int port) const
 {
 	size_t serverInfoIndex = GetServerInfoIndexByPort(port);
-	size_t confInfoIndex = this->GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
-	std::vector<LocationInfo> locationInfos = this->mServerInfos[serverInfoIndex].GetLocationInfos();
+	size_t confInfoIndex = GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
 	std::string result = locationInfos[confInfoIndex].GetRoot();
 	result.append("/");
 	result.append(locationInfos[confInfoIndex].GetDefaultErrorFile());
@@ -307,11 +326,11 @@ std::string Conf::GetDefaultErrorPage(const std::string& targetDir, int port) co
 bool Conf::IsValidHttpMethod(const std::string& targetDir, int port, const std::string& method) const // path에서 해당 http method가 허용되어 있는지 검사
 {
 	size_t serverInfoIndex = GetServerInfoIndexByPort(port);
-	size_t confInfoIndex = this->GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
-	std::vector<LocationInfo> locationInfos = this->mServerInfos[serverInfoIndex].GetLocationInfos();
+	size_t confInfoIndex = GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
 	if (confInfoIndex == locationInfos.size())
 		return false;
-	std::vector<std::string> acceptedMethods = locationInfos[confInfoIndex].GetAcceptedMethods();
+	const std::vector<std::string>& acceptedMethods = locationInfos[confInfoIndex].GetAcceptedMethods();
 	for (size_t i = 0; i < acceptedMethods.size(); i++)
 	{
 		if (acceptedMethods[i] == method) //TODO: Method를 string이 아니라 enum으로 저장하기
@@ -323,10 +342,10 @@ bool Conf::IsValidHttpMethod(const std::string& targetDir, int port, const std::
 void Conf::PrintConfData() const
 {
 	std::cout << "# is valid: " << IsValid() << std::endl;
-	for (size_t j = 0; j < this->mServerInfos.size(); j++)
+	for (size_t j = 0; j < mServerInfos.size(); j++)
 	{
-		std::cout << "# server name: " << this->mServerInfos[j].GetServerName() << std::endl;
-		std::cout << "# port: " << this->mServerInfos[j].GetPort() << std::endl;
+		std::cout << "# server name: " << mServerInfos[j].GetServerName() << std::endl;
+		std::cout << "# port: " << mServerInfos[j].GetPort() << std::endl;
 		std::vector<LocationInfo> locationInfos = mServerInfos[j].GetLocationInfos();
 		for (size_t i = 0; i < locationInfos.size(); i++)
 		{
