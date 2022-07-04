@@ -37,9 +37,13 @@ fclean : clean
 re : fclean all
 
 test :
-	bash ./scripts/test.sh
+	./tester http://localhost:8080
+	# bash ./scripts/test.sh
 
 done :
 	bash ./scripts/done.sh
 
-.PHONY : all debug clean fclean re test done
+check:
+	bash ./scripts/check_byte.sh
+
+.PHONY : all debug clean fclean re test done check
