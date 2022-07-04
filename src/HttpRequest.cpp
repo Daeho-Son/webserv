@@ -133,6 +133,8 @@ bool HttpRequest::parseChunked(std::string& buf)
 			std::cout << "chunked buf: " << buf << "\n";
 		if (chunkedLength == 0)
 		{
+			if (buf.find("\r\n\r\n") == buf.npos)
+				return false;
 			mParseStatus = DONE;
 			break;
 		}

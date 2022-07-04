@@ -15,6 +15,7 @@
 # include <map>
 # include <set>
 # include <vector>
+# include <cstdio>
 
 # include "Conf.hpp"
 # include "HttpRequest.hpp"
