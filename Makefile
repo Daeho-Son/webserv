@@ -36,14 +36,21 @@ fclean : clean
 
 re : fclean all
 
+run : all
+	./webserv
+
 test :
 	./tester http://localhost:8080
 	# bash ./scripts/test.sh
 
-done :
-	bash ./scripts/done.sh
-
 check:
 	bash ./scripts/check_byte.sh
 
-.PHONY : all debug clean fclean re test done check
+lsof:
+	@lsof -i TCP:8080 > log.txt
+	@cat log.txt
+
+siege:
+	@siege http://localhost:8080
+
+.PHONY : all debug clean fclean re test check lsof siege
