@@ -8,12 +8,15 @@
 struct LocationInfo
 {
 public:
+	LocationInfo();
+
+public:
 	void SetLocation(const std::string& location);
 	void SetAcceptedMethods(const std::vector<std::string>& acceptMethod);
 	void SetRoot(const std::string& root);
 	void SetDefaultFile(const std::string& defaultFile);
 	void SetDefaultErrorfile(const std::string& defaultErrorFile);
-	void SetClientBodySize(int clientBodySize);
+	void SetClientBodySize(size_t clientBodySize);
 	void SetCgi(const std::vector<std::string>& cgi);
 
 	const std::string& GetLocation() const;
@@ -21,7 +24,7 @@ public:
 	const std::string& GetRoot() const;
 	const std::string& GetDefaultFile() const;
 	const std::string& GetDefaultErrorFile() const;
-	int GetClientBodySize() const;
+	size_t GetClientBodySize() const;
 	const std::vector<std::string>& GetCgi() const;
 
 private:
@@ -30,7 +33,7 @@ private:
 	std::string mRoot;
 	std::string mDefaultFile;
 	std::string mDefaultErrorFile;
-	int mClientBodySize;
+	size_t mClientBodySize;
 	std::vector<std::string> mCgi;
 };
 

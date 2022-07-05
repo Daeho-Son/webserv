@@ -4,6 +4,16 @@ using namespace ft;
 
 HttpResponse::HttpResponse()
 {
+	this->mHttpVersion = "HTTP/1.1";
+	this->mStatusCode = 0;
+	this->mDate = GetHttpFormDate();
+	this->mConnection = "close";
+	this->mContentType = "text/html";
+	this->mBody = "";
+	this->mSendIndex = 0;
+	this->mIsSendDone = false;
+	this->mHasMessage = false;
+	this->mMessageLength = 0;
 }
 
 HttpResponse::HttpResponse(int statusCode, const std::string& body)
@@ -14,6 +24,10 @@ HttpResponse::HttpResponse(int statusCode, const std::string& body)
 	this->mConnection = "close";
 	this->mContentType = "text/html";
 	this->mBody = body;
+	this->mSendIndex = 0;
+	this->mIsSendDone = false;
+	this->mHasMessage = false;
+	this->mMessageLength = 0;
 }
 
 HttpResponse::HttpResponse(const std::string& cgiData)
@@ -53,7 +67,7 @@ HttpResponse::HttpResponse(const std::string& cgiData)
 
 	// Get Body
 	size_t bodyPos = cgiData.find("\r\n\r\n") + 4;
-	if (bodyPos > cgiData.length())
+	if (bodyPos < cgiData.length())
 	{
 		this->mBody = cgiData.substr(bodyPos);
 	}
@@ -72,8 +86,33 @@ HttpResponse& HttpResponse::operator=(const HttpResponse& other)
 	this->mConnection = other.GetConnection();
 	this->mContentType = other.GetContentType();
 	this->mBody = other.GetBody();
+	this->mSendIndex = 0;
+	this->mIsSendDone = false;
+	this->mHasMessage = false;
+	this->mMessageLength = 0;
 
 	return *this;
+}
+
+// Setter
+void HttpResponse::SetHttpMessage()
+{
+	std::stringstream ss;
+
+	ss << this->GetHttpVersion() << " " << this->GetStatusCode() << " " << this->GetStatusText() << "\n";
+	ss << "Connection: " << this->GetConnection() << "\r\n";
+	ss << "Content-Length: " << this->GetContentLength() << "\r\n";
+	ss << "Content-Type: " << this->GetContentType() << "; charset=UTF-8\r\n";
+	ss << "Date: " << this->GetDate() << "\r\n\r\n";
+	ss << this->GetBody() << "\r\n\r\n";
+	mMessage = ss.str();
+	mMessageLength = mMessage.length();
+}
+
+void HttpResponse::IncrementSendIndex(size_t amount)
+{
+	mSendIndex += amount;
+	if (mSendIndex >= mMessageLength) mIsSendDone = true;
 }
 
 // Getters
@@ -117,17 +156,36 @@ std::string HttpResponse::GetBody() const
 	return this->mBody;
 }
 
-std::string HttpResponse::GetHttpMessage() const
+size_t HttpResponse::GetSendIndex() const
 {
-	std::stringstream ss;
+	return mSendIndex;
+}
 
-	ss << this->GetHttpVersion() << " " << this->GetStatusCode() << " " << this->GetStatusText() << "\n";
-	ss << "Connection: " << this->GetConnection() << "\n";
-	ss << "Content-Length: " << this->GetContentLength() << "\n";
-	ss << "Content-Type: " << this->GetContentType() << "; charset=UTF-8\n";
-	ss << "Date: " << this->GetDate() << "\n\n";
-	ss << this->GetBody();
-	return ss.str();
+bool HttpResponse::GetIsSendDone() const
+{
+	return mIsSendDone;
+}
+
+bool HttpResponse::GetHasMessage() const
+{
+	return mHasMessage;
+}
+
+size_t HttpResponse::GetMessageLength() const
+{
+	return mMessageLength;
+}
+
+const std::string& HttpResponse::GetHttpMessage(size_t size)
+{
+	if (mHasMessage == false)
+	{
+		SetHttpMessage();
+		mHasMessage = true;
+	}
+	mSendMessage = mMessage.substr(mSendIndex, size); // substr
+	std::cout << "Send Percent: " << (int)(100 * mSendIndex / mMessageLength) << "%\n";
+	return mSendMessage;
 }
 
 HttpResponse::~HttpResponse()

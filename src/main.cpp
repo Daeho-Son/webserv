@@ -18,7 +18,7 @@ int main(void)
 	HttpServer server(conf);
 
 	HttpResponse response(200, "Hello, world");
-	std::cout << response.GetHttpMessage() << std::endl;
+	// std::cout << response.GetHttpMessage(MAX_READ_SIZE) << std::endl;
 	server.Run();
 	server.Stop();
 	return 0;

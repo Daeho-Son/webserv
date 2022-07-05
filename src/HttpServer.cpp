@@ -102,13 +102,13 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				// 새로운 Client
 				if (this->IsServerSocket(serverSockets, newEvent->ident))
 				{
-					std::cout << "New client exists.\n";
 					int newClientSocket;
 					if ((newClientSocket = accept(newEvent->ident, NULL, NULL)) == -1)
 					{
 						std::cerr << "[ERROR] accept() failed.\n";
 						continue;
 					}
+					std::cout << "Server: Notice: new client " << newClientSocket << " added.\n";
 					getServerSocketByClientSocket[newClientSocket] = newEvent->ident;
 					clients.insert(newClientSocket);
 					fcntl(newClientSocket, F_SETFL, O_NONBLOCK);
@@ -141,30 +141,22 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					memset(readBuffer, 0, MAX_READ_SIZE);
 					std::string buffer;
 					int readSize;
-					unsigned int totalReadSize = 0;
-					std::cout << "recv starts...\n";
 					while ((readSize = recv(*clientIt, readBuffer, MAX_READ_SIZE-1, MSG_DONTWAIT)) > 0)
 					{
 						buffer.append(readBuffer);
-						totalReadSize += readSize;
+						// totalReadSize += readSize;
 						memset(readBuffer, 0, MAX_READ_SIZE);
 						//std::cout << "receiving...\n";
 					}
-					std::cout << "recv end...\n";
-
-					if (totalReadSize == 0)
+					if (readSize == 0)
 					{
-						this->addEvent(changeList, newEvent->ident, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+						close(newEvent->ident);
+						std::cout << "Server: Notice: client " << newEvent->ident << " left.\n";
 						clients.erase(newEvent->ident);
-						std::cout << "client disconnected...\n";
+						this->addEvent(changeList, newEvent->ident, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+						//this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_DELETE, 0, 0, NULL);
 						continue;
 					}
-
-					// DEBUG MESSAGE
-					// std::cout << "\033[1;34m[RECEIVED PACKET]\n";
-					// std::cout << buffer;
-					// std::cout << "\n[END OF PACKET]\n\033[0m";
-					// END OF DEBUF
 
 					/*
 					STEP 2: 파싱한다. 없으면 생성 후, 파싱.
@@ -180,28 +172,23 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					{
 						std::cerr << e.what() << std::endl;
 					}
-					// catch(...)
-					// {
-					// 	std::cerr << "HttpServer: Error: exception thrown.\n";
-					// }
-
-					// DEBUG
-					// std::cout << "\033[1;32m<----- HTTP REQUEST ----->\n";
-					// std::cout << buffer << std::endl;
-					// std::cout << "<---- END OF REQUEST ---->\n\033[0m";
-					// END DEBUG
 
 					/*
 					STEP 3: HTTP Request가 적절히 변환됐다면 올바른 Response를 구성해서 저장한다.
 					*/
 					if (cachedRequests[newEvent->ident].GetParseStatus() != HttpRequest::DONE)
 						continue;
-
 					int statusCode;
-					std::string messageBody;
+					std::string messageBody = "";
 				    HttpRequest& httpRequest = cachedRequests[newEvent->ident];
 					const HttpRequest::eMethod httpMethod = httpRequest.GetMethod();
-					if (this->mServerConf.IsValidHttpMethod(httpRequest.GetHttpTarget(), port, httpRequest.GetMethodStringByEnum(httpMethod)) == false)
+					if (httpRequest.GetBody().length() > mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port))
+					{
+						std::cout << "Exceeded client body. body len: " <<  httpRequest.GetBody().length() << " limit: " <<  mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port) << "\n";
+						statusCode = 413;
+						messageBody = mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port);
+					}
+					else if (this->mServerConf.IsValidHttpMethod(httpRequest.GetHttpTarget(), port, httpRequest.GetMethodStringByEnum(httpMethod)) == false)
 					{
 						statusCode = 405;
 						messageBody = "";
@@ -209,16 +196,24 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					// CGI Process
 					else if (IsCGIRequest(httpRequest))
 					{
+						httpRequest.ShowHeader();
 						std::cout << "CGI Request arrived.\n";
 						// 환경변수 세팅
 						char* const argv[] = {
 							(char*)"cgi_tester",
 							(char*)0
 						};
-						char* const envp[] = {
+						char* envp[] = {
 							(char*)"REQUEST_METHOD=GET",
 							(char*)"SERVER_PROTOCOL=HTTP/1.1",
 							(char*)"PATH_INFO=\"/index.test\"",
+							(char*)0
+						};
+						char* envp2[] = {
+							(char*)"REQUEST_METHOD=GET",
+							(char*)"SERVER_PROTOCOL=HTTP/1.1",
+							(char*)"PATH_INFO=\"/index.test\"",
+							(char*)"HTTP_X_SECRET_HEADER_FOR_TEST=1",
 							(char*)0
 						};
 
@@ -230,7 +225,9 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							std::cerr << "[ERROR] pipe() failed.\n";
 							continue;
 						}
+						fcntl(p2c[PIPE_WRITE_FD], F_SETFL, O_NONBLOCK);
 						fcntl(p2c[PIPE_READ_FD], F_SETFL, O_NONBLOCK);
+						fcntl(c2p[PIPE_READ_FD], F_SETFL, O_NONBLOCK);
 
 						// fork와 CGI 프로세스 실행
 						pid_t pid = fork();
@@ -245,30 +242,54 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							close(p2c[PIPE_READ_FD]); // 부모는 p2c 파이프에서 쓰기만 한다.
 							close(c2p[PIPE_WRITE_FD]); // 부모는 c2p 파이프에서 읽기만 한다.
 
-							std::cout << "writing CGI message...\n";
-							int writeSize = write(p2c[PIPE_WRITE_FD], httpRequest.GetBody().c_str(), httpRequest.GetBody().length()); // CGI 프로세스에게 content를 전달한다.
-							std::cout << "POST CGI executed! wrote " << writeSize << std::endl;
+							int64_t remainedCgiMessage = httpRequest.GetBody().length();
 
-							close(p2c[1]); // send EOF
-							std::cout << "Parent wrote to child.\n";
-							char readBuffer; // TODO: remove literal
-							while (read(c2p[0], &readBuffer, 1) > 0)
-							{
-								messageBody += readBuffer; // TODO: 최적화
+							while (true) {
+								int writeSize = 0;
+								//std::cout << "cgi write start!\n";
+								ssize_t bodyLen = httpRequest.GetBody().length();
+								std::string writeMessage = httpRequest.GetBody().substr(bodyLen - remainedCgiMessage, MAX_READ_SIZE);
+								writeSize = write(p2c[PIPE_WRITE_FD], writeMessage.c_str(), writeMessage.length());
+								if (writeSize != -1) remainedCgiMessage -= writeSize;
+								//std::cout << "POST CGI executed! wrote " << writeSize << std::endl;
+								//std::cout << "Parent wrote to child.\n";
+								//std::cout << "remainedCgiMessage: " << remainedCgiMessage << std::endl;
+								if (remainedCgiMessage <= 0) close(p2c[PIPE_WRITE_FD]); // send EOF
+								//int status;
+								char readBuffer[MAX_READ_SIZE]; // TODO: remove literal
+								memset(readBuffer, 0, MAX_READ_SIZE);
+								int64_t totalCgiReadSize = 0;
+								int64_t cgiReadSize;
+								//std::cout << "cgi read start!\n";
+								while ((cgiReadSize = read(c2p[PIPE_READ_FD], readBuffer, MAX_READ_SIZE-1)) > 0)
+								{
+									messageBody.append(readBuffer); // TODO: 최적화
+									memset(readBuffer, 0, MAX_READ_SIZE);
+									totalCgiReadSize += cgiReadSize;
+									//std::cout << "cgiReadSize: " << cgiReadSize << std::endl;
+									//std::cout << "totalCgiReadSize: " << totalCgiReadSize << std::endl;
+								}
+								if (cgiReadSize == -1) continue;
+								//std::cout << "totalCgiReadSize: " << totalCgiReadSize << std::endl;
+								if (totalCgiReadSize == 0) break;
 							}
-
-							std::cout << "CGI Response: " << messageBody << std::endl;
+							close(p2c[PIPE_WRITE_FD]); // send EOF
+							//std::cout << "CGI Response: " << messageBody << std::endl;
+							std::cout << "lenth: " << messageBody.length() << std::endl;
 							// TODO: 결과값을 바로 저장하도록 변경
 							statusCode = 200;
-							close(c2p[0]);
+							close(c2p[PIPE_READ_FD]);
 						}
 						else // 자식 프로세스 (= CGI 프로세스)
 						{
-							close(c2p[PIPE_READ_FD]); // 자식은 c2p 파이프에 쓰기만 한다.
 							close(p2c[PIPE_WRITE_FD]); // 자식은 p2c 파이프에 읽기만 한다.
+							close(c2p[PIPE_READ_FD]); // 자식은 c2p 파이프에 쓰기만 한다.
 							dup2(p2c[PIPE_READ_FD], STDIN);
 							dup2(c2p[PIPE_WRITE_FD], STDOUT);
-							execve("./html/cgi-bin/cgi_tester", argv, envp);
+							if (httpRequest.GetFieldByKey("X-Secret-Header-For-Test") == "1")
+								execve("./html/cgi-bin/cgi_tester", argv, envp2);
+							else
+								execve("./html/cgi-bin/cgi_tester", argv, envp);
 
 							std::cerr << "Execute CGI failed. errorno = " << errno << "\n";
 						}
@@ -393,9 +414,9 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						}
 					}
 					if (IsCGIRequest(httpRequest))
-						responses[*clientIt] = HttpResponse(messageBody);
+						responses.insert(std::make_pair(*clientIt, HttpResponse(messageBody)));
 					else
-						responses[*clientIt] = HttpResponse(statusCode, messageBody);
+						responses.insert(std::make_pair(*clientIt, HttpResponse(statusCode, messageBody)));
 					cachedRequests.erase(newEvent->ident);
 					// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
 					this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
@@ -408,24 +429,36 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				std::cout << "Pending message to " << newEvent->ident << ".\n";
 				int clientSocket = newEvent->ident;
 				int sendResult = -1;
-				if (responses.find(clientSocket) != responses.end())
+				std::map<int, HttpResponse>::iterator it;
+				if ((it = responses.find(clientSocket)) != responses.end())
 				{
-					std::string message;
-					HttpResponse res = responses[clientSocket];
-					message = responses[clientSocket].GetHttpMessage();
+					HttpResponse& res = (*it).second;
+					const std::string& message = res.GetHttpMessage(MAX_READ_SIZE);
 					// DEBUG
-					std::cout << "\033[1;33m<----- HTTP RESPONSE ----->\n";
-					std::cout << message << std::endl;
-					std::cout << "<---- END OF RESPONSE ---->\n\033[0m";
+					// std::cout << "\033[1;33m<----- HTTP RESPONSE ----->\n";
+					// std::cout << message << std::endl;
 					// END DEBUG
+					//std::cout << "message length: " << message.length() << "\n";
+					// std::cout << "length: " << message.length() << "\n";
+					// std::cout << "message: " << message << ", Length: " << message.length() << std::endl;
 					sendResult = send(clientSocket, message.c_str(), message.length(), MSG_DONTWAIT); // TODO: 2번 변환 없애기
+					if (sendResult > 0) {
+						res.IncrementSendIndex(sendResult);
+					}
+					// std::cout << "<---- END OF RESPONSE ----> " << "\n\033[0m";
 				}
 				if (sendResult == -1) {
 					std::cerr << "[ERROR] Failed to send message to client.\n";
-					close(clientSocket);
-					clients.erase(clientSocket);
+					std::cerr << "Send errno: " << strerror(errno) << std::endl;
+					return 0;
 				}
-				this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+
+				if (responses[clientSocket].GetIsSendDone() == true)
+				{
+					std::cout << "Send Done!!!" << "\n";
+					responses.erase(clientSocket);
+					this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+				}
 			}
 		} // end of for
 	} // end of main loop
@@ -522,7 +555,7 @@ std::string HttpServer::GetErrorPage(const std::string& targetDir, int port) con
 	{
 		std::cerr << "Could not open " << errorPagePath << "\n";
 		fin.close();
-		return NULL;
+		return "";
 	}
 	std::string buf;
 	while (getline(fin, buf))

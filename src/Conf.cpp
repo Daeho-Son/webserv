@@ -182,7 +182,7 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 		else if (splitString[0] == "default_error_file")
 			locationInfo.SetDefaultErrorfile(splitString[1]);
 		else if (splitString[0] == "client_body_size")
-			locationInfo.SetClientBodySize(static_cast<int>(strtod(splitString[1].c_str(), NULL)));
+			locationInfo.SetClientBodySize(static_cast<size_t>(strtod(splitString[1].c_str(), NULL)));
 		else if (splitString[0] == "cgi")
 		{
 			if (locationInfo.GetCgi().size() != 0)
@@ -306,9 +306,8 @@ std::string Conf::GetDefaultPage(const std::string& targetDir, int port) const
 	if (locationInfoIndex == locationInfos.size())
 		return "";
 	std::string result = GetRootedLocation(targetDir, port);
-	result.append("/");
+	result.append("/"); // TODO: //가 되는 경우가 있음.
 	result.append(locationInfos[locationInfoIndex].GetDefaultFile());
-	std::cout << "result: " << result << std::endl;
 	return result;
 }
 
@@ -322,6 +321,15 @@ std::string Conf::GetDefaultErrorPage(const std::string& targetDir, int port) co
 	result.append(locationInfos[confInfoIndex].GetDefaultErrorFile());
 	return result;
 }
+
+size_t Conf::GetClientBodySize(const std::string& targetDir, int port) const
+{
+	size_t serverInfoIndex = GetServerInfoIndexByPort(port);
+	size_t confInfoIndex = GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
+	return locationInfos[confInfoIndex].GetClientBodySize();
+}
+
 
 bool Conf::IsValidHttpMethod(const std::string& targetDir, int port, const std::string& method) const // path에서 해당 http method가 허용되어 있는지 검사
 {

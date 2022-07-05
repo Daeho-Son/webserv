@@ -128,9 +128,6 @@ bool HttpRequest::parseChunked(std::string& buf)
 		size_t chunkedLengthPos = buf.find("\r\n");
 		if (chunkedLengthPos == buf.npos) return false;
 		size_t chunkedLength = hexToInt(buf.substr(0, chunkedLengthPos));
-		std::cout << "chunkedLengthStr: " << buf.substr(0, chunkedLengthPos) << "\nchunkedLength: " << chunkedLength << std::endl;
-		if (chunkedLengthPos == 0)
-			std::cout << "chunked buf: " << buf << "\n";
 		if (chunkedLength == 0)
 		{
 			if (buf.find("\r\n\r\n") == buf.npos)
@@ -183,6 +180,14 @@ HttpRequest::eMethod HttpRequest::GetMethod() const
 const std::string& HttpRequest::GetBody() const
 {
 	return mBody;
+}
+
+void HttpRequest::ShowHeader() const
+{
+	std::map<std::string, std::string>::const_iterator it = mHeader.begin();
+	for (; it != mHeader.end(); ++it) {
+		std::cout << (*it).first << ": " << (*it).second << std::endl;
+	}
 }
 
 std::string HttpRequest::GetMethodStringByEnum(HttpRequest::eMethod e) const

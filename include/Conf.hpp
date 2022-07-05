@@ -12,7 +12,7 @@
 # include "ServerInfo.hpp"
 
 # define DEFAULT_KEVENT_SIZE 65536
-# define DEFAULT_LISTEN_SIZE 1024
+# define DEFAULT_LISTEN_SIZE 65536
 
 class Conf
 {
@@ -31,7 +31,8 @@ public:
 	std::string GetRootedLocation(const std::string& targetDir, int port) const;
 	std::string GetDefaultPage(const std::string& targetDir, int port) const;
 	std::string GetDefaultErrorPage(const std::string& targetDir, int port) const;
-	bool IsValidHttpMethod(const std::string& targetDir, int port, const std::string& method) const; // path에서 해당 http method가 허용되어 있는지 검사
+	size_t GetClientBodySize(const std::string &tartgetDir, int port) const;
+	bool IsValidHttpMethod(const std::string &targetDir, int port, const std::string &method) const;
 	void PrintConfData() const;
 	bool IsRootFolder(const std::string& targetDir, int port) const;
 

@@ -22,9 +22,13 @@ namespace ft
 		virtual ~HttpResponse();
 		HttpResponse& operator= (const HttpResponse& other);
 
-		std::string GetHttpMessage() const;
+		// Setters
+		void SetHttpMessage();
+
+		void IncrementSendIndex(size_t amount);
 
 		// Getters
+		const std::string& GetHttpMessage(size_t size);
 		std::string GetHttpVersion() const;
 		int			GetStatusCode() const;
 		std::string GetStatusText() const;
@@ -33,6 +37,10 @@ namespace ft
 		int			GetContentLength() const;
 		std::string GetContentType() const;
 		std::string GetBody() const;
+		size_t		GetSendIndex() const;
+		bool		GetIsSendDone() const;
+		bool		GetHasMessage() const;
+		size_t		GetMessageLength() const;
 
 	protected:
 
@@ -46,6 +54,12 @@ namespace ft
 		std::string mConnection;
 		std::string mContentType;
 		std::string mBody;
+		std::string mMessage;
+		std::string	mSendMessage;
+		size_t		mMessageLength;
+		size_t		mSendIndex;
+		bool		mIsSendDone;
+		bool		mHasMessage;
 	};
 }
 

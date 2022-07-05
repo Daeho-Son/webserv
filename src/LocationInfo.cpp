@@ -1,5 +1,8 @@
 #include "LocationInfo.hpp"
 
+LocationInfo::LocationInfo()
+	: mClientBodySize(SIZE_T_MAX) {}
+
 void LocationInfo::SetLocation(const std::string& location)
 {
 	this->mLocation = location;
@@ -25,7 +28,7 @@ void LocationInfo::SetDefaultErrorfile(const std::string& defaultErrorFile)
 	this->mDefaultErrorFile = defaultErrorFile;
 }
 
-void LocationInfo::SetClientBodySize(int clientBodySize)
+void LocationInfo::SetClientBodySize(size_t clientBodySize)
 {
 	this->mClientBodySize = clientBodySize;
 }
@@ -60,7 +63,7 @@ const std::string& LocationInfo::GetDefaultErrorFile() const
 	return this->mDefaultErrorFile;
 }
 
-int LocationInfo::GetClientBodySize() const
+size_t LocationInfo::GetClientBodySize() const
 {
 	return this->mClientBodySize;
 }

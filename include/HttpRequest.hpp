@@ -38,7 +38,7 @@ public:
 
 	bool Parse(std::string& buf);
 	std::string GetFieldByKey(const std::string& key) const;
-	void showAllFieldByKey();
+	void ShowHeader() const;
 	eParseStatus GetParseStatus() const;
 	eMethod GetMethod() const;
 	const std::string& GetBody() const;
@@ -57,13 +57,9 @@ private:
 	eMethod mMethod;
 	std::string mTarget;
 	std::string mHttpVersion;
-	size_t mCachedLength;
 	std::string mCachedContent;
 	std::string mContent;
 	std::string mBufferCache;
-	bool mIsValid;
-	bool mHasRequestLine;
-	bool mHasHeader;
 	size_t mContentLength;
 	eParseStatus mParseStatus;
 	std::map<std::string, std::string> mHeader;
