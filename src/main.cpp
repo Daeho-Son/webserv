@@ -11,14 +11,13 @@ int main(void)
 	}
 	else
 	{
-		std::cerr << "Invalid Conf" << std::endl;
+		std::cerr << "Invalid Conf\n";
 		return 1;
 	}
 
 	HttpServer server(conf);
 
 	HttpResponse response(200, "Hello, world");
-	// std::cout << response.GetHttpMessage(MAX_READ_SIZE) << std::endl;
 	server.Run();
 	server.Stop();
 	return 0;

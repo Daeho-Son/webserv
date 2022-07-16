@@ -18,7 +18,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		serverSockets.push_back(socket(AF_INET, SOCK_STREAM, 0));
 		int& serverSocket = serverSockets[serverSockets.size()-1];
 		getServerIndexBySocket[serverSocket] = i;
-		std::cout << "server socket = " << serverSocket << ", server ports = " << serverPort << "\n";
 		if (serverSocket < 0)
 		{
 			assert(serverSocket >= 0);
@@ -43,27 +42,27 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 
 		if (bind(serverSocket, (sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
 		{
-			std::cerr << "[ERROR] server socket bind() failed.\n";
+			std::cerr << RED << "Server: Error: server socket bind() failed.\n" << NM;
 			close(serverSocket);
 			return 1;
 		}
 
 		if (listen(serverSocket, this->mServerConf.GetListenSize()) < 0) // TODO: use Conf
 		{
-			std::cerr << "[ERROR] server socket listen() failed.\n";
+			std::cerr << RED << "Server: Error: server socket listen() failed.\n" << NM;
 			close(serverSocket);
 			return 1;
 		}
 	}
-	std::cout << "All server sockets opened\n";
-	std::cout << "Server is running.\n";
+	std::cout << GRN << "Server: Notice: All server sockets opened\n" << NM;
+	std::cout << GRN << "Server: Notice: Server is running.\n" << NM;
 
 	// Prepare for multiflexing I/O
 	int kq = kqueue();
 	if (kq < 0)
 	{
 		assert(kq >= 0);
-		std::cerr << "[ERROR] kqueue() failed.\n";
+		std::cerr << RED << "Server: Error: kqueue() failed.\n" << NM;
 		for (size_t i=0; i<serverSockets.size(); ++i)
 		{
 			close(serverSockets[i]);
@@ -84,7 +83,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 	}
 
 	struct kevent eventList[this->mServerConf.GetKeventsSize()];
-	std::cout << "Server main loop started.\n";
+	std::cout << GRN << "Server: Notice: Server main loop started.\n" << NM;
 	// Main loop
 	while (1)
 	{
@@ -94,18 +93,43 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		for (int i=0; i<newEventSize; ++i)
 		{
 			struct kevent* newEvent = &eventList[i];
-			std::cout << "new events! " << newEventSize << "\n";
-
+			
 			// 읽기 요청 이벤트
 			if (newEvent->filter == EVFILT_READ)
 			{
+				// CGI Read
+				std::map<int, int>::iterator it;
+				if ((it = mPipeFds.find(newEvent->ident)) != mPipeFds.end())
+				{
+					HttpRequest& httpRequest = cachedRequests[(*it).second];
+					char readBuffer[MAX_READ_SIZE];
+					memset(readBuffer, 0, MAX_READ_SIZE);
+					int64_t readSize = 0;
+					while ((readSize = read(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], readBuffer, MAX_READ_SIZE - 1)) > 0)
+					{
+						httpRequest.mCgiInfo.mTotalReadSize += readSize;
+						httpRequest.AppendResponseMessageBody(readBuffer);
+						memset(readBuffer, 0, MAX_READ_SIZE);
+					}
+					// 다 읽었으면 Response 만들어서 보낼 준비
+					
+					if (readSize == 0)
+					{
+						responses.insert(std::make_pair((*it).second, HttpResponse(httpRequest.GetResponseMessageBody())));
+						cachedRequests.erase((*it).second);
+						addEvent(changeList, newEvent->ident, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
+						addEvent(changeList, (*it).second, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+						mPipeFds.erase(newEvent->ident);
+						close(newEvent->ident);
+					}
+				}
 				// 새로운 Client
-				if (this->IsServerSocket(serverSockets, newEvent->ident))
+				else if (IsServerSocket(serverSockets, newEvent->ident))
 				{
 					int newClientSocket;
 					if ((newClientSocket = accept(newEvent->ident, NULL, NULL)) == -1)
 					{
-						std::cerr << "[ERROR] accept() failed.\n";
+						std::cerr << "Server: Error: accept() failed.\n";
 						continue;
 					}
 					std::cout << "Server: Notice: new client " << newClientSocket << " added.\n";
@@ -118,16 +142,10 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				// 기존 Client
 				else
 				{
-					// if (newEvent->flags & EV_EOF) // 여기가 문제??
-					// {
-					// 	this->addEvent(changeList, newEvent->ident, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-					// 	std::cerr << "EOF detected...\n";
-					// }
-
-					std::cout << "The client " << newEvent->ident << " sent a message.\n";
+					std::cout << "Server: Notice: The client " << newEvent->ident << " sent a message.\n";
 					std::set<int>::iterator clientIt = clients.find(newEvent->ident);
 					if (clientIt == clients.end()) {
-						std::cerr << "[ERROR] Request from Invalid client\n";
+						std::cerr << "Server: Warning: Request from Invalid client\n";
 						continue;
 					}
 					size_t serverIndex = getServerIndexBySocket[getServerSocketByClientSocket[newEvent->ident]];
@@ -144,17 +162,14 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					while ((readSize = recv(*clientIt, readBuffer, MAX_READ_SIZE-1, MSG_DONTWAIT)) > 0)
 					{
 						buffer.append(readBuffer);
-						// totalReadSize += readSize;
 						memset(readBuffer, 0, MAX_READ_SIZE);
-						//std::cout << "receiving...\n";
 					}
 					if (readSize == 0)
 					{
 						close(newEvent->ident);
 						std::cout << "Server: Notice: client " << newEvent->ident << " left.\n";
 						clients.erase(newEvent->ident);
-						this->addEvent(changeList, newEvent->ident, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-						//this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_DELETE, 0, 0, NULL);
+						addEvent(changeList, newEvent->ident, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 						continue;
 					}
 
@@ -170,7 +185,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					catch(std::exception& e)
 					{
-						std::cerr << e.what() << std::endl;
+						std::cerr << "Server: Error: Parse Error ==> " << e.what() << "\n";
 					}
 
 					/*
@@ -178,13 +193,12 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					*/
 					if (cachedRequests[newEvent->ident].GetParseStatus() != HttpRequest::DONE)
 						continue;
-					int statusCode;
+					int statusCode = 417;
 					std::string messageBody = "";
 				    HttpRequest& httpRequest = cachedRequests[newEvent->ident];
 					const HttpRequest::eMethod httpMethod = httpRequest.GetMethod();
 					if (httpRequest.GetBody().length() > mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port))
 					{
-						std::cout << "Exceeded client body. body len: " <<  httpRequest.GetBody().length() << " limit: " <<  mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port) << "\n";
 						statusCode = 413;
 						messageBody = mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port);
 					}
@@ -196,8 +210,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					// CGI Process
 					else if (IsCGIRequest(httpRequest))
 					{
-						httpRequest.ShowHeader();
-						std::cout << "CGI Request arrived.\n";
+						// httpRequest.ShowHeader();
 						// 환경변수 세팅
 						char* const argv[] = {
 							(char*)"cgi_tester",
@@ -218,80 +231,46 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						};
 
 						// 파이프 세팅
-						int p2c[2];
-						int c2p[2];
-						if (pipe(p2c) < 0 || pipe(c2p) < 0)
+						if (pipe(httpRequest.mCgiInfo.mPipeP2C) < 0 || pipe(httpRequest.mCgiInfo.mPipeC2P) < 0)
 						{
-							std::cerr << "[ERROR] pipe() failed.\n";
+							std::cerr << "Server: Error: pipe() failed.\n";
 							continue;
 						}
-						fcntl(p2c[PIPE_WRITE_FD], F_SETFL, O_NONBLOCK);
-						fcntl(p2c[PIPE_READ_FD], F_SETFL, O_NONBLOCK);
-						fcntl(c2p[PIPE_READ_FD], F_SETFL, O_NONBLOCK);
+						httpRequest.mCgiInfo.mCgiSentSize = 0;
+						httpRequest.mCgiInfo.mRemainedCgiMessage = httpRequest.GetBodyLength();
+						httpRequest.mCgiInfo.mTotalReadSize = 0;
+						fcntl(httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD], F_SETFL, O_NONBLOCK);
+						fcntl(httpRequest.mCgiInfo.mPipeP2C[PIPE_READ_FD], F_SETFL, O_NONBLOCK);
+						fcntl(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], F_SETFL, O_NONBLOCK);
 
 						// fork와 CGI 프로세스 실행
 						pid_t pid = fork();
 						if (pid < 0)
 						{
-							std::cerr << "[ERROR] fork() failed.\n";
+							std::cerr << "Server: Error: fork() failed.\n";
 							continue;
 						}
 
 						if (pid > 0) // 부모 프로세스
 						{
-							close(p2c[PIPE_READ_FD]); // 부모는 p2c 파이프에서 쓰기만 한다.
-							close(c2p[PIPE_WRITE_FD]); // 부모는 c2p 파이프에서 읽기만 한다.
-
-							int64_t remainedCgiMessage = httpRequest.GetBody().length();
-
-							while (true) {
-								int writeSize = 0;
-								//std::cout << "cgi write start!\n";
-								ssize_t bodyLen = httpRequest.GetBody().length();
-								std::string writeMessage = httpRequest.GetBody().substr(bodyLen - remainedCgiMessage, MAX_READ_SIZE);
-								writeSize = write(p2c[PIPE_WRITE_FD], writeMessage.c_str(), writeMessage.length());
-								if (writeSize != -1) remainedCgiMessage -= writeSize;
-								//std::cout << "POST CGI executed! wrote " << writeSize << std::endl;
-								//std::cout << "Parent wrote to child.\n";
-								//std::cout << "remainedCgiMessage: " << remainedCgiMessage << std::endl;
-								if (remainedCgiMessage <= 0) close(p2c[PIPE_WRITE_FD]); // send EOF
-								//int status;
-								char readBuffer[MAX_READ_SIZE]; // TODO: remove literal
-								memset(readBuffer, 0, MAX_READ_SIZE);
-								int64_t totalCgiReadSize = 0;
-								int64_t cgiReadSize;
-								//std::cout << "cgi read start!\n";
-								while ((cgiReadSize = read(c2p[PIPE_READ_FD], readBuffer, MAX_READ_SIZE-1)) > 0)
-								{
-									messageBody.append(readBuffer); // TODO: 최적화
-									memset(readBuffer, 0, MAX_READ_SIZE);
-									totalCgiReadSize += cgiReadSize;
-									//std::cout << "cgiReadSize: " << cgiReadSize << std::endl;
-									//std::cout << "totalCgiReadSize: " << totalCgiReadSize << std::endl;
-								}
-								if (cgiReadSize == -1) continue;
-								//std::cout << "totalCgiReadSize: " << totalCgiReadSize << std::endl;
-								if (totalCgiReadSize == 0) break;
-							}
-							close(p2c[PIPE_WRITE_FD]); // send EOF
-							//std::cout << "CGI Response: " << messageBody << std::endl;
-							std::cout << "lenth: " << messageBody.length() << std::endl;
-							// TODO: 결과값을 바로 저장하도록 변경
-							statusCode = 200;
-							close(c2p[PIPE_READ_FD]);
+							mPipeFds.insert(std::make_pair(httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD], newEvent->ident));
+							mPipeFds.insert(std::make_pair(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], newEvent->ident));
+							close(httpRequest.mCgiInfo.mPipeP2C[PIPE_READ_FD]); // 부모는 p2c 파이프에서 쓰기만 한다.
+							close(httpRequest.mCgiInfo.mPipeC2P[PIPE_WRITE_FD]); // 부모는 c2p 파이프에서 읽기만 한다.
+							addEvent(changeList, httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD], EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+							addEvent(changeList, httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+							continue;
 						}
 						else // 자식 프로세스 (= CGI 프로세스)
 						{
-							close(p2c[PIPE_WRITE_FD]); // 자식은 p2c 파이프에 읽기만 한다.
-							close(c2p[PIPE_READ_FD]); // 자식은 c2p 파이프에 쓰기만 한다.
-							dup2(p2c[PIPE_READ_FD], STDIN);
-							dup2(c2p[PIPE_WRITE_FD], STDOUT);
+							close(httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD]); // 자식은 p2c 파이프에 읽기만 한다.
+							close(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD]); // 자식은 c2p 파이프에 쓰기만 한다.
+							dup2(httpRequest.mCgiInfo.mPipeP2C[PIPE_READ_FD], STDIN);
+							dup2(httpRequest.mCgiInfo.mPipeC2P[PIPE_WRITE_FD], STDOUT);
 							if (httpRequest.GetFieldByKey("X-Secret-Header-For-Test") == "1")
 								execve("./html/cgi-bin/cgi_tester", argv, envp2);
 							else
 								execve("./html/cgi-bin/cgi_tester", argv, envp);
-
-							std::cerr << "Execute CGI failed. errorno = " << errno << "\n";
 						}
 					}
 					else if (httpMethod == HttpRequest::GET)
@@ -350,13 +329,11 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					else if (httpMethod == HttpRequest::PUT)
 					{
-						std::cout << "PUT request is pending..\n";
 						std::string target = this->mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
 						if (target == "")
 						{
 							statusCode = 400; // TODO: Remove literal
 							messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
-							std::cerr << "There is no RequestTarget.\n";
 						}
 						std::ifstream fin(target);
 						bool isNewFile = !fin.is_open();
@@ -413,10 +390,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
 						}
 					}
-					if (IsCGIRequest(httpRequest))
-						responses.insert(std::make_pair(*clientIt, HttpResponse(messageBody)));
-					else
-						responses.insert(std::make_pair(*clientIt, HttpResponse(statusCode, messageBody)));
+					responses.insert(std::make_pair(*clientIt, HttpResponse(statusCode, messageBody)));
 					cachedRequests.erase(newEvent->ident);
 					// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
 					this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
@@ -426,38 +400,55 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 			// 쓰기 요청 이벤트
 			if (newEvent->filter == EVFILT_WRITE)
 			{
-				std::cout << "Pending message to " << newEvent->ident << ".\n";
-				int clientSocket = newEvent->ident;
-				int sendResult = -1;
-				std::map<int, HttpResponse>::iterator it;
-				if ((it = responses.find(clientSocket)) != responses.end())
+				// CGI Write
+				std::map<int, int>::iterator it = mPipeFds.find(newEvent->ident);
+				if (it != mPipeFds.end())
 				{
-					HttpResponse& res = (*it).second;
-					const std::string& message = res.GetHttpMessage(MAX_READ_SIZE);
-					// DEBUG
-					// std::cout << "\033[1;33m<----- HTTP RESPONSE ----->\n";
-					// std::cout << message << std::endl;
-					// END DEBUG
-					//std::cout << "message length: " << message.length() << "\n";
-					// std::cout << "length: " << message.length() << "\n";
-					// std::cout << "message: " << message << ", Length: " << message.length() << std::endl;
-					sendResult = send(clientSocket, message.c_str(), message.length(), MSG_DONTWAIT); // TODO: 2번 변환 없애기
-					if (sendResult > 0) {
-						res.IncrementSendIndex(sendResult);
-					}
-					// std::cout << "<---- END OF RESPONSE ----> " << "\n\033[0m";
-				}
-				if (sendResult == -1) {
-					std::cerr << "[ERROR] Failed to send message to client.\n";
-					std::cerr << "Send errno: " << strerror(errno) << std::endl;
-					return 0;
-				}
+					HttpRequest& httpRequest = cachedRequests[(*it).second];
 
-				if (responses[clientSocket].GetIsSendDone() == true)
+					if (httpRequest.GetBodyLength() > 0)
+					{
+						int writeSize = 0;
+						const std::string &writeMessage = httpRequest.GetBody().substr(
+							httpRequest.GetBodyLength() - httpRequest.mCgiInfo.mRemainedCgiMessage,
+							MAX_WRITE_SIZE);
+
+						writeSize = write(newEvent->ident, writeMessage.c_str(), writeMessage.length());
+						if (writeSize != -1)
+							httpRequest.mCgiInfo.mRemainedCgiMessage -= writeSize;
+					}
+					if (httpRequest.mCgiInfo.mRemainedCgiMessage <= 0)
+					{
+						addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+						close(newEvent->ident);
+						mPipeFds.erase(newEvent->ident);
+					}
+				}
+				else if (clients.find(newEvent->ident) != clients.end())
 				{
-					std::cout << "Send Done!!!" << "\n";
-					responses.erase(clientSocket);
-					this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+					std::cout << "Server: Notice: Pending message to " << newEvent->ident << ".\n";
+					int clientSocket = newEvent->ident;
+					int sendResult = -1;
+					std::map<int, HttpResponse>::iterator it;
+					if ((it = responses.find(clientSocket)) != responses.end())
+					{
+						HttpResponse& res = (*it).second;
+						const std::string& message = res.GetHttpMessage(MAX_READ_SIZE);
+						sendResult = send(clientSocket, message.c_str(), message.length(), MSG_DONTWAIT); // TODO: 2번 변환 없애기
+						if (sendResult > 0) {
+							res.IncrementSendIndex(sendResult);
+						}
+					}
+					if (sendResult == -1) {
+						std::cerr << "Server: Error: Failed to send message to client.\n";
+						return 0;
+					}
+
+					if (responses[clientSocket].GetIsSendDone() == true)
+					{
+						responses.erase(clientSocket);
+						this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+					}
 				}
 			}
 		} // end of for
@@ -473,7 +464,7 @@ int HttpServer::Stop() // 서버를 종료합니다.
 
 HttpServer::~HttpServer()
 {
-	std::cout << "HttpServer is deleted successfully.\n";
+	std::cout << "Server: Notice: HttpServer is deleted successfully.\n";
 }
 
 int HttpServer::addEvent(std::vector<struct kevent>& changeList,
@@ -535,7 +526,7 @@ std::string HttpServer::GetMessageBody(HttpRequest& httpRequest, int statusCode)
 	std::ifstream fin(targetFile);
 	if (fin.is_open() == false)
 	{
-		std::cerr << "Could not open " << targetFile << "\n";
+		std::cerr << "Server: Error: Could not open " << targetFile << "\n";
 		fin.close();
 		return NULL;
 	}
@@ -553,7 +544,7 @@ std::string HttpServer::GetErrorPage(const std::string& targetDir, int port) con
 	std::ifstream fin(errorPagePath);
 	if (fin.is_open() == false)
 	{
-		std::cerr << "Could not open " << errorPagePath << "\n";
+		std::cerr << "Server: Error: Could not open " << errorPagePath << "\n";
 		fin.close();
 		return "";
 	}

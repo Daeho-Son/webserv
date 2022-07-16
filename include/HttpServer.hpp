@@ -21,6 +21,10 @@
 # include "HttpRequest.hpp"
 # include "HttpResponse.hpp"
 
+# define RED "\033[1;31m"
+# define GRN "\033[1;32m"
+# define BLU "\033[1;33m"
+# define NM "\033[0m"
 # define CONF_DEFAULT_TARGET "/index.html"
 # define PIPE_READ_FD 0
 # define PIPE_WRITE_FD 1
@@ -31,7 +35,10 @@ using namespace ft;
 
 class HttpServer
 {
-	enum {MAX_READ_SIZE = 65527};
+	enum {
+		MAX_READ_SIZE = 65527,
+		MAX_WRITE_SIZE = 65527
+	};
 public:
 	HttpServer(Conf& conf);
 	virtual ~HttpServer();
@@ -53,6 +60,7 @@ private:
 	bool IsCGIRequest(const HttpRequest& request) const;
 private:
 	Conf mServerConf;
+	std::map<int, int> mPipeFds;
 };
 
 #endif

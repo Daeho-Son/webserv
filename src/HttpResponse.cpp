@@ -184,7 +184,7 @@ const std::string& HttpResponse::GetHttpMessage(size_t size)
 		mHasMessage = true;
 	}
 	mSendMessage = mMessage.substr(mSendIndex, size); // substr
-	std::cout << "Send Percent: " << (int)(100 * mSendIndex / mMessageLength) << "%\n";
+	std::cout << "Response: Notice: Send Percent: " << (int)(100 * mSendIndex / mMessageLength) << "%\n";
 	return mSendMessage;
 }
 

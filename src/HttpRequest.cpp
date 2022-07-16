@@ -8,11 +8,16 @@ static inline std::string& trim(std::string& s, const char* t = " \t\n\r\f\v");
 static HttpRequest::eMethod GetMethodByString(const std::string& str);
 
 HttpRequest::HttpRequest()
+	:	mBodyLength(-1),
+		mResponseMessageBody("")
+
 {
 	this->mParseStatus = REQUEST_LINE;
 }
 
 HttpRequest::HttpRequest(const HttpRequest& other)
+	:	mBodyLength(-1),
+		mResponseMessageBody("")
 {
 	*this = other;
 }
@@ -22,6 +27,7 @@ HttpRequest& HttpRequest::operator=(const HttpRequest& other)
 	this->mParseStatus = other.mParseStatus;
 	this->mBufferCache = other.mBufferCache;
 	this->mHeader = other.mHeader;
+	this->mResponseMessageBody = other.mResponseMessageBody;
 	return *this;
 }
 
@@ -54,7 +60,7 @@ bool HttpRequest::parseRequestLine(std::string& buf)
 	size_t lastSpace = requestLine.rfind(' ');
 	if (firstSpace == lastSpace)
 	{
-		std::cerr << "Request: Error: InvalidRequestLine: " << requestLine << std::endl;
+		std::cerr << "Request: Error: InvalidRequestLine: " << requestLine << "\n";
 		throw InvalidRequestLine();
 	}
 
@@ -167,26 +173,20 @@ std::string HttpRequest::GetFieldByKey(const std::string &key) const // TODO: re
 	return (*fieldIt).second;
 }
 
-HttpRequest::eParseStatus HttpRequest::GetParseStatus() const
+void HttpRequest::GetCgiEnvVector(std::vector<std::string>& v) const
 {
-	return mParseStatus;
-}
-
-HttpRequest::eMethod HttpRequest::GetMethod() const
-{
-	return mMethod;
-}
-
-const std::string& HttpRequest::GetBody() const
-{
-	return mBody;
-}
-
-void HttpRequest::ShowHeader() const
-{
-	std::map<std::string, std::string>::const_iterator it = mHeader.begin();
-	for (; it != mHeader.end(); ++it) {
-		std::cout << (*it).first << ": " << (*it).second << std::endl;
+	v[0] = std::string("REQUEST_METHOD=").append(GetMethodStringByEnum(mMethod));
+	v[1] = std::string("SERVER_PROTOCOL=HTTP/1.1");
+	v[2] = std::string("PATH_INFO=").append(mTarget);
+	if (GetFieldByKey("X-Secret-Header-For-Test") == "1")
+	{
+		v[3] = std::string("HTTP_X_SECRET_HEADER_FOR_TEST=1");
+		v[4] = "";
+	}
+	else
+	{
+		v[3] = "";
+		v[4] = "";
 	}
 }
 
@@ -205,9 +205,48 @@ std::string HttpRequest::GetMethodStringByEnum(HttpRequest::eMethod e) const
 	return std::string("NOT_VALID");
 }
 
+void HttpRequest::ShowHeader() const
+{
+	std::map<std::string, std::string>::const_iterator it = mHeader.begin();
+	for (; it != mHeader.end(); ++it) {
+		std::cout << (*it).first << ": " << (*it).second << "\n";
+	}
+}
+
+void HttpRequest::AppendResponseMessageBody(const std::string& newResponseMessage)
+{
+	mResponseMessageBody.append(newResponseMessage);
+}
+
+HttpRequest::eParseStatus HttpRequest::GetParseStatus() const
+{
+	return mParseStatus;
+}
+
+HttpRequest::eMethod HttpRequest::GetMethod() const
+{
+	return mMethod;
+}
+
+const std::string& HttpRequest::GetBody() const
+{
+	return mBody;
+}
+
+ssize_t HttpRequest::GetBodyLength()
+{
+	if (mBodyLength == -1) mBodyLength = mBody.length();
+	return mBodyLength;
+}
+
 const std::string& HttpRequest::GetHttpTarget() const
 {
 	return mTarget;
+}
+
+const std::string& HttpRequest::GetResponseMessageBody() const
+{
+	return mResponseMessageBody;
 }
 
 static size_t hexToInt(const std::string& hex)
