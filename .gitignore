@@ -1,7 +1,8 @@
 # Files
 *.o
 webserv
-dason.md
+put_test/multiple_same
+put_test/file_should_exist_after
 
 # Folders
 .vscode
