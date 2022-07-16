@@ -27,12 +27,13 @@ public:
 	bool IsValid() const;
 	int GetKeventsSize() const;
 	int GetListenSize() const;
-	
+
+	bool IsValidCgiExtension(const std::string& targetDir, int port, const std::string& cgiExtension) const;
 	std::string GetRootedLocation(const std::string& targetDir, int port) const;
 	std::string GetDefaultPage(const std::string& targetDir, int port) const;
 	std::string GetDefaultErrorPage(const std::string& targetDir, int port) const;
-	size_t GetClientBodySize(const std::string &tartgetDir, int port) const;
-	bool IsValidHttpMethod(const std::string &targetDir, int port, const std::string &method) const;
+	size_t GetClientBodySize(const std::string& tartgetDir, int port) const;
+	bool IsValidHttpMethod(const std::string& targetDir, int port, const std::string &method) const;
 	void PrintConfData() const;
 	bool IsRootFolder(const std::string& targetDir, int port) const;
 
@@ -41,7 +42,7 @@ private:
 	bool ParseServerInfo(std::vector<std::string> confInfo, std::set<std::string> hasPort);
 	bool ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::string>& confInfo, size_t& confInfoIndex, std::set<std::string>& hasLocation);
 
-	size_t GetLocationInfoIndexByTargetDirectory(const std::string &targetDir, size_t serverInfoIndex) const;
+	size_t GetLocationInfoIndexByTargetDirectory(const std::string& targetDir, size_t serverInfoIndex) const;
 	size_t GetServerInfoIndexByPort(int port) const;
 
 private:

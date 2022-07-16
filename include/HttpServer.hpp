@@ -57,7 +57,7 @@ private:
 	std::string GetErrorPage(const std::string& targetDir, int port) const;
 	bool IsServerSocket(const std::vector<int>& serverSockets, uintptr_t ident) const;
 	bool ReadFileAll(const std::string& filePath, std::string& result) const;
-	bool IsCGIRequest(const HttpRequest& request) const;
+	bool IsCGIRequest(const HttpRequest& request, int port) const;
 private:
 	Conf mServerConf;
 	std::map<int, int> mPipeFds;

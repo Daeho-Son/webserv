@@ -267,6 +267,25 @@ size_t Conf::GetServerInfoIndexByPort(int port) const
 	return mServerInfos.size();
 }
 
+bool Conf::IsValidCgiExtension(const std::string &targetDir, int port, const std::string& cgiExtension) const
+{
+	std::cout << "Here\n";
+	size_t serverInfoIndex = GetServerInfoIndexByPort(port);
+	if (serverInfoIndex == mServerInfos.size())
+		return "";
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
+	size_t locationInfoIndex = GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
+	if (locationInfoIndex == locationInfos.size() || locationInfoIndex == SIZE_T_MAX)
+		return "";
+	const std::vector<std::string>& cgiExtensions = locationInfos[locationInfoIndex].GetCgi();
+	std::vector<std::string>::const_iterator it = cgiExtensions.begin();
+	for (; it != cgiExtensions.end(); ++it)
+	{
+		if (*it == cgiExtension) return true;
+	}
+	return false;
+}
+
 std::string Conf::GetRootedLocation(const std::string& targetDir, int port) const
 {
 	size_t serverInfoIndex = GetServerInfoIndexByPort(port);

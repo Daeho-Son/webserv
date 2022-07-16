@@ -208,7 +208,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						messageBody = "";
 					}
 					// CGI Process
-					else if (IsCGIRequest(httpRequest))
+					else if (IsCGIRequest(httpRequest, port))
 					{
 						// httpRequest.ShowHeader();
 						// 환경변수 세팅
@@ -579,12 +579,17 @@ bool HttpServer::IsServerSocket(const std::vector<int>& serverSockets, uintptr_t
 	return false;
 }
 
-// WARNING: This is a dummy function!
-bool HttpServer::IsCGIRequest(const HttpRequest& request) const
+bool HttpServer::IsCGIRequest(const HttpRequest& request, int port) const
 {
-	std::string target = request.GetHttpTarget();
-	std::string fileExtension = target.substr(target.rfind(".") + 1);
-
-	// TODO: use conf's cgi tag
-	return fileExtension == "bla";
+	std::string rootedTarget = mServerConf.GetRootedLocation(request.GetHttpTarget(), port);
+	size_t extensionPos = rootedTarget.rfind(".");
+	if (extensionPos != rootedTarget.npos)
+	{
+		std::string fileExtension = rootedTarget.substr(extensionPos);
+		return mServerConf.IsValidCgiExtension(request.GetHttpTarget(), port, fileExtension);
+	}
+	else
+	{
+		return false;
+	}
 }
