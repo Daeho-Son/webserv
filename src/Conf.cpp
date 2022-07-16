@@ -194,6 +194,10 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 			split(cgis, splitString[1], '|');
 			locationInfo.SetCgi(cgis);
 		}
+		else if (splitString[0] == "auto_index")
+		{
+			locationInfo.SetAutoIndex(splitString[1]);
+		}
 		else // Unknown keyword
 		{
 			mIsValid = false;
@@ -269,7 +273,6 @@ size_t Conf::GetServerInfoIndexByPort(int port) const
 
 bool Conf::IsValidCgiExtension(const std::string &targetDir, int port, const std::string& cgiExtension) const
 {
-	std::cout << "Here\n";
 	size_t serverInfoIndex = GetServerInfoIndexByPort(port);
 	if (serverInfoIndex == mServerInfos.size())
 		return "";
@@ -288,7 +291,7 @@ bool Conf::IsValidCgiExtension(const std::string &targetDir, int port, const std
 
 std::string Conf::GetRootedLocation(const std::string& targetDir, int port) const
 {
-	size_t serverInfoIndex = GetServerInfoIndexByPort(port);
+	size_t serverInfoIndex= GetServerInfoIndexByPort(port);
 	if (serverInfoIndex == mServerInfos.size())
 		return "";
 	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
@@ -313,6 +316,18 @@ bool Conf::IsRootFolder(const std::string& targetDir, int port) const
 		return false;
 	const std::string& location = locationInfos[locationInfoIndex].GetLocation();
 	return location == targetDir;
+}
+
+bool Conf::IsAutoIndex(const std::string &targetDir, int port) const
+{
+	size_t serverInfoIndex= GetServerInfoIndexByPort(port);
+	if (serverInfoIndex == mServerInfos.size())
+		return "";
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
+	size_t locationInfoIndex = GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
+	if (locationInfoIndex == locationInfos.size() || locationInfoIndex == SIZE_T_MAX)
+		return "";
+	return locationInfos[locationInfoIndex].IsAutoIndex();
 }
 
 std::string Conf::GetDefaultPage(const std::string& targetDir, int port) const
@@ -368,33 +383,34 @@ bool Conf::IsValidHttpMethod(const std::string& targetDir, int port, const std::
 
 void Conf::PrintConfData() const
 {
-	std::cout << "# is valid: " << IsValid() << std::endl;
+	std::cout << "# is valid: " << IsValid() << "\n";
 	for (size_t j = 0; j < mServerInfos.size(); j++)
 	{
-		std::cout << "# server name: " << mServerInfos[j].GetServerName() << std::endl;
-		std::cout << "# port: " << mServerInfos[j].GetPort() << std::endl;
+		std::cout << "# server name: " << mServerInfos[j].GetServerName() << "\n";
+		std::cout << "# port: " << mServerInfos[j].GetPort() << "\n";
 		std::vector<LocationInfo> locationInfos = mServerInfos[j].GetLocationInfos();
 		for (size_t i = 0; i < locationInfos.size(); i++)
 		{
-			std::cout << "## location: " << locationInfos[i].GetLocation() << std::endl;
+			std::cout << "## location: " << locationInfos[i].GetLocation() << "\n";
 			std::cout << "## accepted method: " << std::endl;
 			std::vector<std::string> acceptedMethods = locationInfos[i].GetAcceptedMethods();
 			for (size_t i = 0; i < acceptedMethods.size(); i++)
 			{
-				std::cout << " - " << acceptedMethods[i] << std::endl;
+				std::cout << " - " << acceptedMethods[i] << "\n";
 			}
-			std::cout << "## root: " << locationInfos[i].GetRoot() << std::endl;
-			std::cout << "## default file: " << locationInfos[i].GetDefaultFile() << std::endl;
-			std::cout << "## default error file: " << locationInfos[i].GetDefaultErrorFile() << std::endl;
-			std::cout << "## client body size: " << locationInfos[i].GetClientBodySize() << std::endl;
+			std::cout << "## root: " << locationInfos[i].GetRoot() << "\n";
+			std::cout << "## default file: " << locationInfos[i].GetDefaultFile() << "\n";
+			std::cout << "## default error file: " << locationInfos[i].GetDefaultErrorFile() << "\n";
+			std::cout << "## client body size: " << locationInfos[i].GetClientBodySize() << "\n";
 			std::cout << "## cgi: " << std::endl;
+			std::cout << "## auto index: " << locationInfos[i].IsAutoIndex() << "\n";
 			std::vector<std::string> cgis = locationInfos[i].GetCgi();
 			for (size_t i = 0; i < cgis.size(); i++)
 			{
-				std::cout << " - " << cgis[i] << std::endl;
+				std::cout << " - " << cgis[i] << "\n";
 			}
 			std::cout << std::endl;
 		}
-		std::cout << "----------"<< std::endl;
+		std::cout << "----------\n";
 	}
 }

@@ -16,6 +16,7 @@
 # include <set>
 # include <vector>
 # include <cstdio>
+#include <dirent.h>
 
 # include "Conf.hpp"
 # include "HttpRequest.hpp"
@@ -53,11 +54,12 @@ private:
 
 	int addEvent(std::vector<struct kevent>& changeList, uintptr_t ident, int16_t filter, uint16_t flags, uint32_t fflags, intptr_t data, void* udata);
 	HttpResponse GetResponseByRequest(HttpRequest& request);
-	std::string GetMessageBody(HttpRequest& httpRequest, int statusCode) const;
 	std::string GetErrorPage(const std::string& targetDir, int port) const;
 	bool IsServerSocket(const std::vector<int>& serverSockets, uintptr_t ident) const;
 	bool ReadFileAll(const std::string& filePath, std::string& result) const;
 	bool IsCGIRequest(const HttpRequest& request, int port) const;
+	bool GetDirectoryList(const std::string& target, int port, std::string& result) const;
+	
 private:
 	Conf mServerConf;
 	std::map<int, int> mPipeFds;

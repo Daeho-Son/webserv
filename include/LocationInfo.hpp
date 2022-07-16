@@ -18,6 +18,7 @@ public:
 	void SetDefaultErrorfile(const std::string& defaultErrorFile);
 	void SetClientBodySize(size_t clientBodySize);
 	void SetCgi(const std::vector<std::string>& cgi);
+	void SetAutoIndex(const std::string& autoIndex);
 
 	const std::string& GetLocation() const;
 	const std::vector<std::string>& GetAcceptedMethods() const;
@@ -26,6 +27,7 @@ public:
 	const std::string& GetDefaultErrorFile() const;
 	size_t GetClientBodySize() const;
 	const std::vector<std::string>& GetCgi() const;
+	bool IsAutoIndex() const;
 
 private:
 	std::vector<std::string> mAcceptedMethods;
@@ -35,6 +37,7 @@ private:
 	std::string mDefaultErrorFile;
 	size_t mClientBodySize;
 	std::vector<std::string> mCgi;
+	bool mAutoIndex;
 };
 
 #endif

@@ -1,74 +1,88 @@
 #include "LocationInfo.hpp"
 
 LocationInfo::LocationInfo()
-	: mClientBodySize(SIZE_T_MAX) {}
+	:	mClientBodySize(SIZE_T_MAX),
+		mAutoIndex(false) {}
 
 void LocationInfo::SetLocation(const std::string& location)
 {
-	this->mLocation = location;
+	mLocation = location;
 }
 
 void LocationInfo::SetAcceptedMethods(const std::vector<std::string>& acceptedMethod)
 {
-	this->mAcceptedMethods = acceptedMethod;
+	mAcceptedMethods = acceptedMethod;
 }
 
 void LocationInfo::SetRoot(const std::string& root)
 {
-	this->mRoot = root;
+	mRoot = root;
 }
 
 void LocationInfo::SetDefaultFile(const std::string& deaultFile)
 {
-	this->mDefaultFile = deaultFile;
+	mDefaultFile = deaultFile;
 }
 
 void LocationInfo::SetDefaultErrorfile(const std::string& defaultErrorFile)
 {
-	this->mDefaultErrorFile = defaultErrorFile;
+	mDefaultErrorFile = defaultErrorFile;
 }
 
 void LocationInfo::SetClientBodySize(size_t clientBodySize)
 {
-	this->mClientBodySize = clientBodySize;
+	mClientBodySize = clientBodySize;
 }
 
 void LocationInfo::SetCgi(const std::vector<std::string>& cgi)
 {
-	this->mCgi = cgi;
+	mCgi = cgi;
+}
+
+void LocationInfo::SetAutoIndex(const std::string& autoIndex)
+{
+	if (autoIndex == "on")
+		mAutoIndex = true;
+	else
+		mAutoIndex = false;
 }
 
 const std::string& LocationInfo::GetLocation() const
 {
-	return this->mLocation;
+	return mLocation;
 }
 
 const std::vector<std::string>& LocationInfo::GetAcceptedMethods() const
 {
-	return this->mAcceptedMethods;
+	return mAcceptedMethods;
 }
 
 const std::string& LocationInfo::GetRoot() const
 {
-	return this->mRoot;
+	return mRoot;
 }
 
 const std::string& LocationInfo::GetDefaultFile() const
 {
-	return this->mDefaultFile;
+	return mDefaultFile;
 }
 
 const std::string& LocationInfo::GetDefaultErrorFile() const
 {
-	return this->mDefaultErrorFile;
+	return mDefaultErrorFile;
 }
 
 size_t LocationInfo::GetClientBodySize() const
 {
-	return this->mClientBodySize;
+	return mClientBodySize;
 }
 
 const std::vector<std::string>& LocationInfo::GetCgi() const
 {
-	return this->mCgi;
+	return mCgi;
+}
+
+bool LocationInfo::IsAutoIndex() const
+{
+	return mAutoIndex;
 }

@@ -122,6 +122,10 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						mPipeFds.erase(newEvent->ident);
 						close(newEvent->ident);
 					}
+					if (readSize == -1)
+					{
+						std::cerr << "Server: Error: Read Failed\n";
+					}
 				}
 				// 새로운 Client
 				else if (IsServerSocket(serverSockets, newEvent->ident))
@@ -155,7 +159,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					/*
 					STEP 1. fd에 있는 모든 데이터를 읽는다.
 					*/
-					char readBuffer[MAX_READ_SIZE]; // read()에만 쓰이는 buffer. 읽은 값은 buffer에 담깁니다.
+					char readBuffer[MAX_READ_SIZE];
 					memset(readBuffer, 0, MAX_READ_SIZE);
 					std::string buffer;
 					int readSize;
@@ -200,12 +204,12 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					if (httpRequest.GetBody().length() > mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port))
 					{
 						statusCode = 413;
-						messageBody = mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port);
+						messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
 					}
 					else if (this->mServerConf.IsValidHttpMethod(httpRequest.GetHttpTarget(), port, httpRequest.GetMethodStringByEnum(httpMethod)) == false)
 					{
 						statusCode = 405;
-						messageBody = "";
+						messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
 					}
 					// CGI Process
 					else if (IsCGIRequest(httpRequest, port))
@@ -276,7 +280,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					else if (httpMethod == HttpRequest::GET)
 					{
 						// Check the target is directory or not.
-						std::string rootedTarget = this->mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
+						std::string rootedTarget = mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
 						struct stat myStat;
 						bool isDirectory = false;
 						bool isValid = (stat(rootedTarget.c_str(), &myStat) == 0);
@@ -285,15 +289,27 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							isDirectory = (myStat.st_mode & S_IFDIR) != 0;
 							// 폴더면 디폴트 페이지 받아오고
 								// 폴더인데 루트 폴더가 아닌 경우 404
-							if (isDirectory)
+							if (isDirectory && mServerConf.IsAutoIndex(httpRequest.GetHttpTarget(), port))
 							{
-								bool success = ReadFileAll(this->mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port), messageBody); // TODO: 최적화
+								statusCode = 200;
+								bool success = GetDirectoryList(httpRequest.GetHttpTarget(), port, messageBody);
 								if (success)
 									statusCode = 200;
 								else
 								{
 									statusCode = 404;
-									messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
+									messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
+								}
+							}
+							else if (isDirectory)
+							{
+								bool success = ReadFileAll(mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port), messageBody); // TODO: 최적화
+								if (success)
+									statusCode = 200;
+								else
+								{
+									statusCode = 404;
+									messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
 								}
 							}
 							else
@@ -416,6 +432,8 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						writeSize = write(newEvent->ident, writeMessage.c_str(), writeMessage.length());
 						if (writeSize != -1)
 							httpRequest.mCgiInfo.mRemainedCgiMessage -= writeSize;
+						else
+							std::cerr << "Server: Error: Write Failed\n";
 					}
 					if (httpRequest.mCgiInfo.mRemainedCgiMessage <= 0)
 					{
@@ -439,7 +457,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							res.IncrementSendIndex(sendResult);
 						}
 					}
-					if (sendResult == -1) {
+					if (sendResult == -1 || sendResult == 0) {
 						std::cerr << "Server: Error: Failed to send message to client.\n";
 						return 0;
 					}
@@ -499,44 +517,6 @@ HttpServer& HttpServer::operator=(const HttpServer& other)
 	return *this;
 }
 
-// TODO: (의논) 외부 함수로 뺄까?
-static std::string GetTargetFile(HttpRequest& httpRequest)
-{
-	std::string requestTarget = httpRequest.GetHttpTarget();
-	std::string path = "./";
-	std::string targetFile = "";
-	if (requestTarget == "/")
-		requestTarget = CONF_DEFAULT_TARGET; // TODO: use conf
-	if (requestTarget.find(".html") != requestTarget.npos)
-		path += "html";
-	if (requestTarget.find(".ico") != requestTarget.npos)
-		path += "ico";
-	targetFile = path + requestTarget;
-	return targetFile;
-}
-
-std::string HttpServer::GetMessageBody(HttpRequest& httpRequest, int statusCode) const
-{
-	std::stringstream ss;
-	std::string targetFile = "";
-	if (statusCode != 200)
-		targetFile = "./html/404.html";
-	else
-		targetFile = GetTargetFile(httpRequest);
-	std::ifstream fin(targetFile);
-	if (fin.is_open() == false)
-	{
-		std::cerr << "Server: Error: Could not open " << targetFile << "\n";
-		fin.close();
-		return NULL;
-	}
-	std::string buf;
-	while (getline(fin, buf))
-		ss << buf;
-	fin.close();
-	return ss.str();
-}
-
 std::string HttpServer::GetErrorPage(const std::string& targetDir, int port) const
 {
 	std::stringstream ss;
@@ -592,4 +572,32 @@ bool HttpServer::IsCGIRequest(const HttpRequest& request, int port) const
 	{
 		return false;
 	}
+}
+
+bool HttpServer::GetDirectoryList(const std::string& targetDir, int port, std::string& result) const
+{
+	struct dirent *diread;
+	DIR *dir;
+
+	std::string rootedLocation = mServerConf.GetRootedLocation(targetDir, port);
+    if ((dir = opendir(rootedLocation.c_str())) != nullptr)
+	{
+		result.append("<h1>");
+		result.append(targetDir);
+		result.append("</h1><pre>");
+        while ((diread = readdir(dir)) != nullptr)
+		{
+			if (std::string(diread->d_name) == "." || std::string(diread->d_name) == "..")
+				continue;
+            result.append(diread->d_name);
+            result.append("\n");
+        }
+		result.append("</pre>");
+        closedir (dir);
+		return true;
+    }
+	else
+	{
+        return false;
+    }
 }

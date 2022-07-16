@@ -36,6 +36,7 @@ public:
 	bool IsValidHttpMethod(const std::string& targetDir, int port, const std::string &method) const;
 	void PrintConfData() const;
 	bool IsRootFolder(const std::string& targetDir, int port) const;
+	bool IsAutoIndex(const std::string& targetDir, int port) const;
 
 private:
 	void Parse(const std::string& contFile);
