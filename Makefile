@@ -51,6 +51,6 @@ lsof:
 	@cat log.txt
 
 siege:
-	@siege http://localhost:8080
+	@siege -b http://localhost:8080
 
 .PHONY : all debug clean fclean re test check lsof siege
