@@ -37,11 +37,13 @@ fclean : clean
 re : fclean all
 
 run : all
-	./webserv
+	./webserv ./conf/test_1.conf
 
-test :
+test1 :
 	./tester http://localhost:8080
-	# bash ./scripts/test.sh
+
+test2 :
+	bash ./scripts/test.sh
 
 check:
 	bash ./scripts/check_byte.sh
