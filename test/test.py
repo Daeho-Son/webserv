@@ -19,7 +19,7 @@ class WebServGetTest(unittest.TestCase) :
 		self.assertEqual(res.status_code, 200)
 
 	def test_200_ok_head(self):
-		res = requests.head(self.URL)
+		res = requests.head(self.URL + "/put_test")
 		self.assertEqual(res.status_code, 200)
 
 	def test_201_created_put(self):
@@ -27,15 +27,15 @@ class WebServGetTest(unittest.TestCase) :
 		self.assertEqual(res.status_code, 201)
 
 	def test_204_post_exist(self):
-		res = requests.post(self.URL + "/put_test/test_temp_output", data="204_post_exist")
+		res = requests.post(self.URL + "/post_body/test_temp_output", data="204_post_exist")
 		self.assertEqual(res.status_code, 204)
 
 	def test_204_post_new(self):
-		res = requests.post(self.URL + "/put_test/not_exist", data="204_post_new")
+		res = requests.post(self.URL + "/post_body/not_exist", data="204_post_new")
 		self.assertEqual(res.status_code, 204)
 	
 	def test_204_put_exist(self):
-		res = requests.post(self.URL + "/put_test/test_temp_output", data="204_put_exist")
+		res = requests.put(self.URL + "/put_test/test_temp_output", data="204_put_exist")
 		self.assertEqual(res.status_code, 204)	
 
 	def test_400_no_method_exist(self):
@@ -51,7 +51,7 @@ class WebServGetTest(unittest.TestCase) :
 		self.assertEqual(res.status_code, 404)
 
 	def test_404_not_found_head(self):
-		res = requests.head(self.URL + "/i_dont_have_this_page")
+		res = requests.head(self.URL + "/put_test/i_dont_have_this_page")
 		self.assertEqual(res.status_code, 404)
 
 	def test_405_method_not_allowed_get(self):
@@ -63,11 +63,11 @@ class WebServGetTest(unittest.TestCase) :
 		self.assertEqual(res.status_code, 405)
 
 	def test_411_length_required_post(self):
-		res = requests.request("POST", self.URL + "/post_body/index.html")
+		res = requests.request("POST", self.URL + "/post_body/index.html", headers={"Content-Length":""})
 		self.assertEqual(res.status_code, 411)
 
-	def test_411_length_required_post(self):
-		res = requests.request("PUT", self.URL + "/put_test/new.html")
+	def test_411_length_required_put(self):
+		res = requests.request("PUT", self.URL + "/put_test/new.html", headers={"Content-Length":""})
 		self.assertEqual(res.status_code, 411)
 
 	def test_413_payload_too_large_post(self):
@@ -75,11 +75,11 @@ class WebServGetTest(unittest.TestCase) :
 		self.assertEqual(res.status_code, 413)
 
 	def test_virtual_hosting_1(self):
-		res = requests.get(self.URL, headers={"Host", "webserv"})
+		res = requests.get(self.URL, headers={"Host":"webserv"})
 		self.assertEqual(res.status_code, 200)
 
 	def test_virtual_hosting_2(self):
-		res = requests.get(URL, headers={"Host", "webserv1"})
+		res = requests.get(self.URL, headers={"Host":"webserv1"})
 		self.assertEqual(res.status_code, 200)
 
 	def get_test(self):
