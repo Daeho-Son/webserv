@@ -43,7 +43,8 @@ test1 :
 	./tester http://localhost:8080
 
 test2 :
-	bash ./scripts/test.sh
+	python3 ./test/test.py
+	rm ./put_test/test_temp_output
 
 check:
 	bash ./scripts/check_byte.sh
