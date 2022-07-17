@@ -29,7 +29,8 @@ public:
 	};
 	enum eBodyType{
 		CONTENT,
-		CHUNKED
+		CHUNKED,
+		INVALID_TYPE
 	};
 	struct CgiInfo {
 		size_t mCgiSentSize;
@@ -54,6 +55,7 @@ public:
 
 	// Getter
 	eParseStatus GetParseStatus() const;
+	eBodyType GetBodyType() const;
 	eMethod GetMethod() const;
 	const std::string& GetBody() const;
 	ssize_t GetBodyLength();

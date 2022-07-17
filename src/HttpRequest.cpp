@@ -67,7 +67,6 @@ bool HttpRequest::parseRequestLine(std::string& buf)
 	mMethod = GetMethodByString(requestLine.substr(0, firstSpace));
 	mTarget = requestLine.substr(firstSpace+1, lastSpace-firstSpace-1);
 	mHttpVersion = requestLine.substr(lastSpace+1);
-
 	// Caching...
 	buf.erase(0, newlinePos+2);
 
@@ -100,15 +99,16 @@ bool HttpRequest::parseHeader(std::string& buf)
 		this->mParseStatus = BODY;
 		mBodyType = CHUNKED;
 	}
-	else if ((it = mHeader.find("Content-Length")) != mHeader.end() && (*it).second != "0")
+	else if ((it = mHeader.find("Content-Length")) != mHeader.end())
 	{
 		this->mParseStatus = BODY;
 		mBodyType = CONTENT;
 		mContentLength = strtod((*it).second.c_str(), NULL);
-		if (mContentLength > 0) throw BadContentLength();
+		if (mContentLength < 0) throw BadContentLength();
 	}
 	else
 	{
+		mBodyType = INVALID_TYPE;
 		this->mParseStatus = DONE;
 	}
 
@@ -122,6 +122,7 @@ bool HttpRequest::parseBody(std::string& buf)
 
 	if (mBodyType == CHUNKED) parseChunked(buf);
 	else if (mBodyType == CONTENT) parseContent(buf);
+	else if (mBodyType == INVALID_TYPE) mParseStatus = DONE;
 	else throw InvalidParseStatus();
 
 	return true;
@@ -156,7 +157,7 @@ bool HttpRequest::parseChunked(std::string& buf)
 
 bool HttpRequest::parseContent(std::string& buf)
 {
-	if (buf.length() >= mContentLength+4)
+	if (buf.length() >= mContentLength)
 	{
 		mBody = buf.substr(0, mContentLength);
 		mParseStatus = DONE;
@@ -221,6 +222,11 @@ void HttpRequest::AppendResponseMessageBody(const std::string& newResponseMessag
 HttpRequest::eParseStatus HttpRequest::GetParseStatus() const
 {
 	return mParseStatus;
+}
+
+HttpRequest::eBodyType HttpRequest::GetBodyType() const
+{
+	return mBodyType;
 }
 
 HttpRequest::eMethod HttpRequest::GetMethod() const

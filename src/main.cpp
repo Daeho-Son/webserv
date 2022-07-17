@@ -2,9 +2,14 @@
 #include <string>
 #include <iostream>
 
-int main(void)
+int main(int argc, char** argv)
 {
-	Conf conf("./conf/test_1.conf");
+	if (argc != 2)
+	{
+		std::cerr << "Usage: ./webserv [configuration file]\n";	
+		return 1;
+	}
+	Conf conf(argv[1]);
 	if (conf.IsValid() == true)
 	{
 		conf.PrintConfData();
@@ -16,8 +21,6 @@ int main(void)
 	}
 
 	HttpServer server(conf);
-
-	HttpResponse response(200, "Hello, world");
 	server.Run();
 	server.Stop();
 	return 0;

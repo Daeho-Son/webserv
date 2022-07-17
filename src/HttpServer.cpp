@@ -124,7 +124,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					if (readSize == -1)
 					{
-						std::cerr << "Server: Error: Read Failed\n";
+						// std::cerr << "Server: Error: Read Failed\n";
 					}
 				}
 				// 새로운 Client
@@ -176,7 +176,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						addEvent(changeList, newEvent->ident, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 						continue;
 					}
-
 					/*
 					STEP 2: 파싱한다. 없으면 생성 후, 파싱.
 					*/
@@ -189,9 +188,13 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					catch(std::exception& e)
 					{
-						std::cerr << "Server: Error: Parse Error ==> " << e.what() << "\n";
+						std::cerr << "Server: Error: Request Parse Error ==> " << e.what() << "\n";
 					}
-
+					catch(...)
+					{
+						// TODO: 이대로 가나?
+						std::cerr << "Server: Error: Request Parse Error\n";
+					}
 					/*
 					STEP 3: HTTP Request가 적절히 변환됐다면 올바른 Response를 구성해서 저장한다.
 					*/
@@ -204,6 +207,11 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					if (httpRequest.GetBody().length() > mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port))
 					{
 						statusCode = 413;
+						messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+					}
+					else if (httpRequest.GetMethod() == HttpRequest::NOT_VALID)
+					{
+						statusCode = 400;
 						messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
 					}
 					else if (this->mServerConf.IsValidHttpMethod(httpRequest.GetHttpTarget(), port, httpRequest.GetMethodStringByEnum(httpMethod)) == false)
@@ -335,8 +343,16 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					else if (httpMethod == HttpRequest::POST) // TODO: check available method in this directory. use conf
 					{
-						statusCode = 204; // TODO: Remove literal
-						messageBody = "";
+						if (httpRequest.GetParseStatus() == HttpRequest::DONE && httpRequest.GetBodyType() == HttpRequest::INVALID_TYPE)
+						{
+							statusCode = 411;
+							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port);
+						}
+						else
+						{
+							statusCode = 204; // TODO: Remove literal
+							messageBody = "";
+						}
 					}
 					else if (httpMethod == HttpRequest::DELETE)
 					{
@@ -345,29 +361,37 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					else if (httpMethod == HttpRequest::PUT)
 					{
-						std::string target = this->mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
-						if (target == "")
+						if (httpRequest.GetParseStatus() == HttpRequest::DONE && httpRequest.GetBodyType() == HttpRequest::INVALID_TYPE)
 						{
-							statusCode = 400; // TODO: Remove literal
-							messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+							statusCode = 411;
+							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port);
 						}
-						std::ifstream fin(target);
-						bool isNewFile = !fin.is_open();
-						fin.close();
-
-						std::ofstream fout(target);
-						fout << httpRequest.GetBody();
-						// 해당 루트에 파일이 없으면 생성한다 -> 성공시 201, Created
-						if (isNewFile)
-						{
-							statusCode = 201;
-							messageBody = "";
-						}
-						// 해당 루트에 파일이 이미 있으면 수정한다 -> 성공시 204, No Content
 						else
 						{
-							statusCode = 204;
-							messageBody = "";
+							std::string target = this->mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
+							if (target == "")
+							{
+								statusCode = 400; // TODO: Remove literal
+								messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+							}
+							std::ifstream fin(target);
+							bool isNewFile = !fin.is_open();
+							fin.close();
+
+							std::ofstream fout(target);
+							fout << httpRequest.GetBody();
+							// 해당 루트에 파일이 없으면 생성한다 -> 성공시 201, Created
+							if (isNewFile)
+							{
+								statusCode = 201;
+								messageBody = "";
+							}
+							// 해당 루트에 파일이 이미 있으면 수정한다 -> 성공시 204, No Content
+							else
+							{
+								statusCode = 204;
+								messageBody = "";
+							}
 						}
 					}
 					else if (httpMethod == HttpRequest::HEAD)

@@ -58,8 +58,8 @@ private:
 	bool IsServerSocket(const std::vector<int>& serverSockets, uintptr_t ident) const;
 	bool ReadFileAll(const std::string& filePath, std::string& result) const;
 	bool IsCGIRequest(const HttpRequest& request, int port) const;
-	bool GetDirectoryList(const std::string& target, int port, std::string& result) const;
-	
+	bool GetDirectoryList(const std::string& targetDit, int port, std::string& result) const;
+
 private:
 	Conf mServerConf;
 	std::map<int, int> mPipeFds;
