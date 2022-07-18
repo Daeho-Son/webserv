@@ -56,6 +56,8 @@ void Conf::Parse(const std::string& confFile)
 		if (buf == "::eosb")
 		{
 			mIsValid = ParseServerInfo(confInfo, hasPort);
+			if (mIsValid == false)
+				return ;
 			confInfo.clear();
 		}
 		else
@@ -363,7 +365,6 @@ size_t Conf::GetClientBodySize(const std::string& targetDir, int port) const
 	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
 	return locationInfos[confInfoIndex].GetClientBodySize();
 }
-
 
 bool Conf::IsValidHttpMethod(const std::string& targetDir, int port, const std::string& method) const // path에서 해당 http method가 허용되어 있는지 검사
 {
