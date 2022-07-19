@@ -17,7 +17,7 @@ namespace ft
 	public:
 		HttpResponse();
 		HttpResponse(const HttpResponse& other);
-		HttpResponse(int statusCode, const std::string& body);
+		HttpResponse(int statusCode, const std::string& body, const std::string& connection);
 		HttpResponse(const std::string& rawData);
 		virtual ~HttpResponse();
 		HttpResponse& operator= (const HttpResponse& other);

@@ -8,6 +8,7 @@ HttpResponse::HttpResponse()
 	this->mStatusCode = 0;
 	this->mDate = GetHttpFormDate();
 	this->mConnection = "close";
+	// this->mConnection = "Keep-Alive";
 	this->mContentType = "text/html";
 	this->mBody = "";
 	this->mSendIndex = 0;
@@ -16,12 +17,17 @@ HttpResponse::HttpResponse()
 	this->mMessageLength = 0;
 }
 
-HttpResponse::HttpResponse(int statusCode, const std::string& body)
+HttpResponse::HttpResponse(int statusCode, const std::string& body, const std::string& connection)
 {
 	this->mHttpVersion = "HTTP/1.1";
 	this->mStatusCode = statusCode;
 	this->mDate = GetHttpFormDate();
+	this->mConnection = connection;
 	this->mConnection = "close";
+	// if (connection == "close")
+	// 	this->mConnection = "close";
+	// else
+	// 	this->mConnection = "Keep-Alive";
 	this->mContentType = "text/html";
 	this->mBody = body;
 	this->mSendIndex = 0;
@@ -44,6 +50,10 @@ HttpResponse::HttpResponse(const std::string& cgiData)
 			break;
 	}
 
+	this->mHttpVersion = "HTTP/1.1";
+	this->mDate = GetHttpFormDate();
+	this->mConnection = "Keep-Alive";
+	this->mConnection = "close";
 	// Set Http Header
 	std::stringstream tss;
 	for (size_t i=0; i<splitData.size(); ++i)
@@ -58,12 +68,13 @@ HttpResponse::HttpResponse(const std::string& cgiData)
 		}
 		else if (key == "Content-Type")
 		{
-			this->mContentType =  splitData[i].substr(delimPos+2);
+			this->mContentType = splitData[i].substr(delimPos+2);
+		}
+		else if (key == "Connection")
+		{
+			this->mConnection = splitData[i].substr(delimPos+2);
 		}
 	}
-	this->mHttpVersion = "HTTP/1.1";
-	this->mDate = GetHttpFormDate();
-	this->mConnection = "close";
 
 	// Get Body
 	size_t bodyPos = cgiData.find("\r\n\r\n") + 4;
@@ -103,7 +114,15 @@ void HttpResponse::SetHttpMessage()
 	ss << "Connection: " << this->GetConnection() << "\r\n";
 	ss << "Content-Length: " << this->GetContentLength() << "\r\n";
 	ss << "Content-Type: " << this->GetContentType() << "; charset=UTF-8\r\n";
-	ss << "Date: " << this->GetDate() << "\r\n\r\n";
+	if (this->GetConnection() == "close")
+	{
+		ss << "Date: " << this->GetDate() << "\r\n\r\n";
+	}
+	else
+	{
+		ss << "Date: " << this->GetDate() << "\r\n";
+		ss << "Keep-Alive: timeout=3, max=1000" << "\r\n\r\n";
+	}
 	ss << this->GetBody() << "\r\n\r\n";
 	mMessage = ss.str();
 	mMessageLength = mMessage.length();

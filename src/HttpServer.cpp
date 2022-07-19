@@ -36,7 +36,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		rn = sizeof(int);
 
 		// 현재 전송 소켓 버퍼의 크기를 가져온다.
-    	getsockopt(serverSocket, SOL_SOCKET, SO_SNDBUF, &bsize, (socklen_t *)&rn);
+		getsockopt(serverSocket, SOL_SOCKET, SO_SNDBUF, &bsize, (socklen_t *)&rn);
 		bsize *= 2;
 		setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &bsize, (socklen_t)rn);
 
@@ -74,6 +74,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 	// <client socket, server socket>
 	std::map<int, int> getServerSocketByClientSocket;
 	std::set<int> clients;
+	std::map<int, time_t> timeout;
 	std::map<uintptr_t, HttpRequest> cachedRequests;
 	std::map<int, HttpResponse> responses;
 	std::vector<struct kevent> changeList;
@@ -168,14 +169,16 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						buffer.append(readBuffer);
 						memset(readBuffer, 0, MAX_READ_SIZE);
 					}
-					if (readSize == 0)
+					if (readSize == 0 && difftime(time(NULL), timeout[newEvent->ident]) > 3)
 					{
 						close(newEvent->ident);
-						std::cout << "Server: Notice: client " << newEvent->ident << " left.\n";
+						std::cout << RED << "Server: Notice: client " << newEvent->ident << " left.\n" << NM;
 						clients.erase(newEvent->ident);
 						addEvent(changeList, newEvent->ident, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
+						timeout.erase(newEvent->ident);
 						continue;
 					}
+					else if (readSize == 0) continue;
 					/*
 					STEP 2: 파싱한다. 없으면 생성 후, 파싱.
 					*/
@@ -203,6 +206,14 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					int statusCode = 417;
 					std::string messageBody = "";
 				    HttpRequest& httpRequest = cachedRequests[newEvent->ident];
+					if (httpRequest.GetFieldByKey("Connection") == "null" || httpRequest.GetFieldByKey("Connection") == "keep-alive")
+					{
+						timeout[newEvent->ident] = time(NULL);
+					}
+					else
+					{
+						timeout[newEvent->ident] = 0;
+					}
 					const HttpRequest::eMethod httpMethod = httpRequest.GetMethod();
 					if (httpRequest.GetBody().length() > mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port))
 					{
@@ -430,7 +441,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
 						}
 					}
-					responses.insert(std::make_pair(*clientIt, HttpResponse(statusCode, messageBody)));
+					responses.insert(std::make_pair(*clientIt, HttpResponse(statusCode, messageBody, httpRequest.GetFieldByKey("Connection"))));
 					cachedRequests.erase(newEvent->ident);
 					// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
 					this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
@@ -476,6 +487,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					{
 						HttpResponse& res = (*it).second;
 						const std::string& message = res.GetHttpMessage(MAX_READ_SIZE);
+						std::cerr << message << std::endl;
 						sendResult = send(clientSocket, message.c_str(), message.length(), MSG_DONTWAIT); // TODO: 2번 변환 없애기
 						if (sendResult > 0) {
 							res.IncrementSendIndex(sendResult);
