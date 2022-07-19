@@ -7,8 +7,7 @@ HttpResponse::HttpResponse()
 	this->mHttpVersion = "HTTP/1.1";
 	this->mStatusCode = 0;
 	this->mDate = GetHttpFormDate();
-	this->mConnection = "close";
-	// this->mConnection = "Keep-Alive";
+	this->mConnection = "Keep-Alive";
 	this->mContentType = "text/html";
 	this->mBody = "";
 	this->mSendIndex = 0;
@@ -22,12 +21,10 @@ HttpResponse::HttpResponse(int statusCode, const std::string& body, const std::s
 	this->mHttpVersion = "HTTP/1.1";
 	this->mStatusCode = statusCode;
 	this->mDate = GetHttpFormDate();
-	this->mConnection = connection;
-	this->mConnection = "close";
-	// if (connection == "close")
-	// 	this->mConnection = "close";
-	// else
-	// 	this->mConnection = "Keep-Alive";
+	if (connection == "close")
+		this->mConnection = "close";
+	else
+		this->mConnection = "Keep-Alive";
 	this->mContentType = "text/html";
 	this->mBody = body;
 	this->mSendIndex = 0;
@@ -53,7 +50,6 @@ HttpResponse::HttpResponse(const std::string& cgiData)
 	this->mHttpVersion = "HTTP/1.1";
 	this->mDate = GetHttpFormDate();
 	this->mConnection = "Keep-Alive";
-	this->mConnection = "close";
 	// Set Http Header
 	std::stringstream tss;
 	for (size_t i=0; i<splitData.size(); ++i)
@@ -111,7 +107,6 @@ void HttpResponse::SetHttpMessage()
 	std::stringstream ss;
 
 	ss << this->GetHttpVersion() << " " << this->GetStatusCode() << " " << this->GetStatusText() << "\n";
-	ss << "Connection: " << this->GetConnection() << "\r\n";
 	ss << "Content-Length: " << this->GetContentLength() << "\r\n";
 	ss << "Content-Type: " << this->GetContentType() << "; charset=UTF-8\r\n";
 	if (this->GetConnection() == "close")
@@ -120,10 +115,11 @@ void HttpResponse::SetHttpMessage()
 	}
 	else
 	{
+		ss << "Connection: " << this->GetConnection() << "\r\n";
 		ss << "Date: " << this->GetDate() << "\r\n";
 		ss << "Keep-Alive: timeout=3, max=1000" << "\r\n\r\n";
 	}
-	ss << this->GetBody() << "\r\n\r\n";
+	ss << this->GetBody();
 	mMessage = ss.str();
 	mMessageLength = mMessage.length();
 }
