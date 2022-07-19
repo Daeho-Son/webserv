@@ -31,14 +31,10 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
 		serverAddress.sin_port = htons(serverPort); // TODO: use Conf
 
-		int bsize = 0;
-		int rn;
-		rn = sizeof(int);
+		int sock_opt = 1;
 
-		// 현재 전송 소켓 버퍼의 크기를 가져온다.
-		getsockopt(serverSocket, SOL_SOCKET, SO_SNDBUF, &bsize, (socklen_t *)&rn);
-		bsize *= 2;
-		setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &bsize, (socklen_t)rn);
+		setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &sock_opt, sizeof(sock_opt));
+		// setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &bsize, (socklen_t)rn);
 
 		if (bind(serverSocket, (sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
 		{
@@ -46,13 +42,15 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 			close(serverSocket);
 			return 1;
 		}
-
+		std::cout << "listen size: " << this->mServerConf.GetListenSize() << std::endl;
 		if (listen(serverSocket, this->mServerConf.GetListenSize()) < 0) // TODO: use Conf
 		{
 			std::cerr << RED << "Server: Error: server socket listen() failed.\n" << NM;
 			close(serverSocket);
 			return 1;
 		}
+
+		fcntl(serverSocket, F_SETFL, O_NONBLOCK);
 	}
 	std::cout << GRN << "Server: Notice: All server sockets opened\n" << NM;
 	std::cout << GRN << "Server: Notice: Server is running.\n" << NM;
@@ -91,10 +89,16 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		int newEventSize = kevent(kq, &changeList[0], changeList.size(), eventList, this->mServerConf.GetKeventsSize(), NULL);
 		changeList.clear();
 
+		// TODO: keep_alive 타임 체크해서 3초 지난 클라이언트는 close해줘야 함.
+		// 아래는 의사 코드 (그냥 파이썬식으로 대충 쓴거니까 느낌만 파악하시면 됩니다)
+		// for all clients:
+		// 		if timeout == true:
+		//			close(client->fd)
+
 		for (int i=0; i<newEventSize; ++i)
 		{
 			struct kevent* newEvent = &eventList[i];
-			
+
 			// 읽기 요청 이벤트
 			if (newEvent->filter == EVFILT_READ)
 			{
@@ -113,7 +117,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						memset(readBuffer, 0, MAX_READ_SIZE);
 					}
 					// 다 읽었으면 Response 만들어서 보낼 준비
-					
+
 					if (readSize == 0)
 					{
 						responses.insert(std::make_pair((*it).second, HttpResponse(httpRequest.GetResponseMessageBody())));
@@ -495,13 +499,16 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					if (sendResult == -1 || sendResult == 0) {
 						std::cerr << "Server: Error: Failed to send message to client.\n";
-						return 0;
+						continue;
 					}
 
 					if (responses[clientSocket].GetIsSendDone() == true)
 					{
 						responses.erase(clientSocket);
 						this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+						close(clientSocket); // TODO: 이 코드는 siege 테스트를 위해 임시적으로 만든 코드입니다.
+						// keep_alive 체크를 kqueue가 한번씩 돌아갈 때마다 해서 관리를 해줘야 하는 듯하네요.
+						// 해당 코드 위치는 주석으로 달아놨습니다. "TODO" 키워드로 검색해보시면 됩니다.
 					}
 				}
 			}
