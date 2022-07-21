@@ -6,6 +6,7 @@ NAME = webserv
 INCLUDE = -I ./include
 SRC_DIR = ./src/
 SRC_FILE =	Conf.cpp 			\
+			Client.cpp			\
 			HttpRequest.cpp		\
 			HttpResponse.cpp	\
 			HttpServer.cpp		\
@@ -40,7 +41,7 @@ run : all
 	./webserv ./conf/test_1.conf
 
 test1 :
-	./tester http://localhost:8080
+	bash ./scripts/tester_test.sh
 
 test2 :
 	python3 ./test/test.py
