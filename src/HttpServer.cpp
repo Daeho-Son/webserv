@@ -71,8 +71,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 
 	// <client socket, server socket>
 	std::map<int, int> getServerSocketByClientSocket;
-	std::set<int> clients;
-	std::map<int, time_t> timeout;
 	std::map<uintptr_t, HttpRequest> cachedRequests;
 	std::map<int, HttpResponse> responses;
 	std::vector<struct kevent> changeList;
@@ -88,12 +86,23 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 	{
 		int newEventSize = kevent(kq, &changeList[0], changeList.size(), eventList, this->mServerConf.GetKeventsSize(), NULL);
 		changeList.clear();
+		
+		std::set<int>::iterator it;
+		std::stack<int> timeoutClients;
+		for (it = clients.begin(); it != clients.end(); ++it)
+		{
+			if (IsTimeoutSocket(*it))
+			{
+				timeoutClients.push(*it);
+			}
+		}
 
-		// TODO: keep_alive 타임 체크해서 3초 지난 클라이언트는 close해줘야 함.
-		// 아래는 의사 코드 (그냥 파이썬식으로 대충 쓴거니까 느낌만 파악하시면 됩니다)
-		// for all clients:
-		// 		if timeout == true:
-		//			close(client->fd)
+		while (timeoutClients.empty() == false)
+		{
+			DisconnectClient(*it, changeList);
+			timeoutClients.pop();
+		}
+		// end of timeout
 
 		for (int i=0; i<newEventSize; ++i)
 		{
@@ -173,16 +182,20 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						buffer.append(readBuffer);
 						memset(readBuffer, 0, MAX_READ_SIZE);
 					}
-					if (readSize == 0 && difftime(time(NULL), timeout[newEvent->ident]) > 3)
+					// if (readSize == 0 && difftime(time(NULL), timeout[newEvent->ident]) > 3)
+					// {
+						
+					// 	close(newEvent->ident);
+					// 	std::cout << RED << "Server: Notice: client " << newEvent->ident << " left.\n" << NM;
+					// 	clients.erase(newEvent->ident);
+					// 	addEvent(changeList, newEvent->ident, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
+					// 	timeout.erase(newEvent->ident);
+					// 	continue;
+					// }
+					if (readSize == 0)
 					{
-						close(newEvent->ident);
-						std::cout << RED << "Server: Notice: client " << newEvent->ident << " left.\n" << NM;
-						clients.erase(newEvent->ident);
-						addEvent(changeList, newEvent->ident, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
-						timeout.erase(newEvent->ident);
-						continue;
+						DisconnectClient(newEvent->ident, changeList);
 					}
-					else if (readSize == 0) continue;
 					/*
 					STEP 2: 파싱한다. 없으면 생성 후, 파싱.
 					*/
@@ -491,7 +504,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					{
 						HttpResponse& res = (*it).second;
 						const std::string& message = res.GetHttpMessage(MAX_READ_SIZE);
-						std::cerr << message << std::endl;
 						sendResult = send(clientSocket, message.c_str(), message.length(), MSG_DONTWAIT); // TODO: 2번 변환 없애기
 						if (sendResult > 0) {
 							res.IncrementSendIndex(sendResult);
@@ -506,9 +518,10 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					{
 						responses.erase(clientSocket);
 						this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
-						close(clientSocket); // TODO: 이 코드는 siege 테스트를 위해 임시적으로 만든 코드입니다.
-						// keep_alive 체크를 kqueue가 한번씩 돌아갈 때마다 해서 관리를 해줘야 하는 듯하네요.
-						// 해당 코드 위치는 주석으로 달아놨습니다. "TODO" 키워드로 검색해보시면 됩니다.
+						if (IsTimeoutSocket(clientSocket))
+						{
+							DisconnectClient(clientSocket, changeList);
+						}
 					}
 				}
 			}
@@ -643,4 +656,26 @@ bool HttpServer::GetDirectoryList(const std::string& targetDir, int port, std::s
 	{
         return false;
     }
+}
+
+bool HttpServer::IsTimeoutSocket(int socket)
+{
+	std::map<int, time_t>::iterator it = timeout.find(socket);
+	if (it != timeout.end()) return difftime(time(NULL), (*it).second) > 3;
+	else return false;
+}
+
+bool HttpServer::DisconnectClient(int clientSocket, std::vector<struct kevent>& changeList)
+{
+	int result = 0;
+	if (clients.find(clientSocket) != clients.end())
+	{
+		result = close(clientSocket);
+		std::cout << RED << "Server: Notice: client " << clientSocket << " left.\n" << NM;
+		clients.erase(clientSocket);
+		timeout.erase(clientSocket);
+		addEvent(changeList, clientSocket, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
+	}
+	
+	return result == 0;
 }

@@ -59,9 +59,13 @@ private:
 	bool ReadFileAll(const std::string& filePath, std::string& result) const;
 	bool IsCGIRequest(const HttpRequest& request, int port) const;
 	bool GetDirectoryList(const std::string& targetDit, int port, std::string& result) const;
+	bool IsTimeoutSocket(int socket);
+	bool DisconnectClient(int clientSocket, std::vector<struct kevent>& changeList);
 
 private:
 	Conf mServerConf;
+	std::set<int> clients;
+	std::map<int, time_t> timeout;
 	std::map<int, int> mPipeFds;
 };
 
