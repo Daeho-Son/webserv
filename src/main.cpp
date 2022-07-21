@@ -21,6 +21,7 @@ int main(int argc, char** argv)
 	}
 
 	HttpServer server(conf);
+	signal(SIGPIPE, SIG_IGN);
 	server.Run();
 	server.Stop();
 	return 0;

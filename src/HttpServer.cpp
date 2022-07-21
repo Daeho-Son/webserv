@@ -134,6 +134,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 						mPipeFds.erase(newEvent->ident);
 						close(newEvent->ident);
+						wait(NULL);
 						continue;
 					}
 					if (readSize == -1)
