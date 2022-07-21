@@ -41,14 +41,14 @@ run : all
 	./webserv ./conf/test_1.conf
 
 test1 :
-	bash ./scripts/tester_test.sh
+	./tester http://localhost:8080
 
 test2 :
-	python3 ./test/test.py
-	rm ./put_test/test_temp_output
+	@python3 ./test/test.py
+	@rm ./put_test/test_temp_output
 
 check:
-	bash ./scripts/check_byte.sh
+	@bash ./scripts/check_byte.sh
 
 lsof:
 	@lsof -i TCP:8080 > log.txt
