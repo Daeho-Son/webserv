@@ -1,27 +1,34 @@
 #ifndef FT_CLIENT_HPP
-#define FT_CLIENT_HPP
+# define FT_CLIENT_HPP
+
+# include <ctime>
 
 class Client
 {
-enum eState {Request, Response, Done}
+public:
+    enum eState {Request, Response, Done};
 
 public:
-    inline eState   GetState() { return mState; }
-    inline int      GetSocket() { return mSocket; }
-    inline bool     IsCgiFd(int fd) { return mCgiWriteFd == fd || mCgiReadFd == fd; }
-	inline time_t	GetLastResponseTime(time_t t) { return mLastResponseTime; }
+    inline eState   GetState() const { return mState; }
+    inline int      GetSocket() const { return mSocket; }
+    inline int      GetServerSocket() const { return mServerSocket; }
+    inline bool     IsCgiFd(int fd) const { return mCgiWriteFd == fd || mCgiReadFd == fd; }
+	inline time_t	GetLastResponseTime() const { return mLastResponseTime; }
     
 	inline void		SetState(eState newState) { mState = newState; }
-	inline void		SetSocket(int socket) { mSocket = socket; }
 	inline void		SetCgiFds(int writeFd, int readFd) { mCgiWriteFd = writeFd; mCgiReadFd = readFd; }
 	inline void		SetLastResponseTime(time_t t) { mLastResponseTime = t; }
+
+    Client();
+    Client(int socket, int serverSocket);
 
 private:
     eState  mState;
     int     mSocket;
+    int     mServerSocket;
     int     mCgiWriteFd;
-    int     mCgiReadRd;
-    int     mResponseReadFd;
+    int     mCgiReadFd;
+    // int     mResponseReadFd;
     time_t  mLastResponseTime;
 };
 

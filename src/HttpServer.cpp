@@ -69,8 +69,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		return 1;
 	}
 
-	// <client socket, server socket>
-	std::map<int, int> getServerSocketByClientSocket;
 	std::map<uintptr_t, HttpRequest> cachedRequests;
 	std::map<int, HttpResponse> responses;
 	std::vector<struct kevent> changeList;
@@ -87,19 +85,19 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		int newEventSize = kevent(kq, &changeList[0], changeList.size(), eventList, this->mServerConf.GetKeventsSize(), NULL);
 		changeList.clear();
 		
-		std::set<int>::iterator it;
+		std::map<int, Client>::iterator it;
 		std::stack<int> timeoutClients;
-		for (it = clients.begin(); it != clients.end(); ++it)
+		for (it = mClients.begin(); it != mClients.end(); ++it)
 		{
-			if (IsTimeoutSocket(*it))
+			if ((*it).second.GetState() == Client::Done && IsTimeoutSocket((*it).second))
 			{
-				timeoutClients.push(*it);
+				timeoutClients.push((*it).first);
 			}
 		}
 
 		while (timeoutClients.empty() == false)
 		{
-			DisconnectClient(*it, changeList);
+			DisconnectClient(timeoutClients.top(), changeList);
 			timeoutClients.pop();
 		}
 		// end of timeout
@@ -115,7 +113,8 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				std::map<int, int>::iterator it;
 				if ((it = mPipeFds.find(newEvent->ident)) != mPipeFds.end())
 				{
-					HttpRequest& httpRequest = cachedRequests[(*it).second];
+					int clientSocket = (*it).second;
+					HttpRequest& httpRequest = cachedRequests[clientSocket];
 					char readBuffer[MAX_READ_SIZE];
 					memset(readBuffer, 0, MAX_READ_SIZE);
 					int64_t readSize = 0;
@@ -129,12 +128,13 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 
 					if (readSize == 0)
 					{
-						responses.insert(std::make_pair((*it).second, HttpResponse(httpRequest.GetResponseMessageBody())));
-						cachedRequests.erase((*it).second);
+						responses.insert(std::make_pair(clientSocket, HttpResponse(httpRequest.GetResponseMessageBody())));
+						cachedRequests.erase(clientSocket);
 						addEvent(changeList, newEvent->ident, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
-						addEvent(changeList, (*it).second, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 						mPipeFds.erase(newEvent->ident);
 						close(newEvent->ident);
+						continue;
 					}
 					if (readSize == -1)
 					{
@@ -150,23 +150,19 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						std::cerr << "Server: Error: accept() failed.\n";
 						continue;
 					}
-					std::cout << "Server: Notice: new client " << newClientSocket << " added.\n";
-					getServerSocketByClientSocket[newClientSocket] = newEvent->ident;
-					clients.insert(newClientSocket);
-					fcntl(newClientSocket, F_SETFL, O_NONBLOCK);
-					this->addEvent(changeList, newClientSocket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
-					this->addEvent(changeList, newClientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+					ConnectClient(newClientSocket, newEvent->ident, changeList);
 				}
 				// 기존 Client
 				else
 				{
 					std::cout << "Server: Notice: The client " << newEvent->ident << " sent a message.\n";
-					std::set<int>::iterator clientIt = clients.find(newEvent->ident);
-					if (clientIt == clients.end()) {
+					std::map<int, Client>::iterator clientIt = mClients.find(newEvent->ident);
+					if (clientIt == mClients.end()) {
 						std::cerr << "Server: Warning: Request from Invalid client\n";
 						continue;
 					}
-					size_t serverIndex = getServerIndexBySocket[getServerSocketByClientSocket[newEvent->ident]];
+					size_t serverIndex = getServerIndexBySocket[(*clientIt).second.GetServerSocket()];
+					int clientSocket = (*clientIt).second.GetSocket();
 					ServerInfo serverInfo = mServerConf.GetServerInfos()[serverIndex];
 					int port = serverInfo.GetPort();
 
@@ -177,34 +173,26 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					memset(readBuffer, 0, MAX_READ_SIZE);
 					std::string buffer;
 					int readSize;
-					while ((readSize = recv(*clientIt, readBuffer, MAX_READ_SIZE-1, MSG_DONTWAIT)) > 0)
+					while ((readSize = recv(clientSocket, readBuffer, MAX_READ_SIZE-1, MSG_DONTWAIT)) > 0)
 					{
 						buffer.append(readBuffer);
 						memset(readBuffer, 0, MAX_READ_SIZE);
 					}
-					// if (readSize == 0 && difftime(time(NULL), timeout[newEvent->ident]) > 3)
-					// {
-						
-					// 	close(newEvent->ident);
-					// 	std::cout << RED << "Server: Notice: client " << newEvent->ident << " left.\n" << NM;
-					// 	clients.erase(newEvent->ident);
-					// 	addEvent(changeList, newEvent->ident, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
-					// 	timeout.erase(newEvent->ident);
-					// 	continue;
-					// }
 					if (readSize == 0)
 					{
-						DisconnectClient(newEvent->ident, changeList);
+						DisconnectClient(clientSocket, changeList);
+						continue;
 					}
 					/*
 					STEP 2: 파싱한다. 없으면 생성 후, 파싱.
 					*/
-					if (cachedRequests.find(newEvent->ident) == cachedRequests.end())
+					(*clientIt).second.SetState(Client::Request);
+					if (cachedRequests.find(clientSocket) == cachedRequests.end())
 					{
-						cachedRequests.insert(std::make_pair(newEvent->ident, HttpRequest()));
+						cachedRequests.insert(std::make_pair(clientSocket, HttpRequest()));
 					}
 					try {
-						cachedRequests[newEvent->ident].Parse(buffer);
+						cachedRequests[clientSocket].Parse(buffer);
 					}
 					catch(std::exception& e)
 					{
@@ -212,25 +200,16 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					catch(...)
 					{
-						// TODO: 이대로 가나?
 						std::cerr << "Server: Error: Request Parse Error\n";
 					}
 					/*
 					STEP 3: HTTP Request가 적절히 변환됐다면 올바른 Response를 구성해서 저장한다.
 					*/
-					if (cachedRequests[newEvent->ident].GetParseStatus() != HttpRequest::DONE)
+					if (cachedRequests[clientSocket].GetParseStatus() != HttpRequest::DONE)
 						continue;
 					int statusCode = 417;
 					std::string messageBody = "";
-				    HttpRequest& httpRequest = cachedRequests[newEvent->ident];
-					if (httpRequest.GetFieldByKey("Connection") == "null" || httpRequest.GetFieldByKey("Connection") == "keep-alive")
-					{
-						timeout[newEvent->ident] = time(NULL);
-					}
-					else
-					{
-						timeout[newEvent->ident] = 0;
-					}
+				    HttpRequest& httpRequest = cachedRequests[clientSocket];
 					const HttpRequest::eMethod httpMethod = httpRequest.GetMethod();
 					if (httpRequest.GetBody().length() > mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port))
 					{
@@ -458,7 +437,8 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
 						}
 					}
-					responses.insert(std::make_pair(*clientIt, HttpResponse(statusCode, messageBody, httpRequest.GetFieldByKey("Connection"))));
+					mClients[clientSocket].SetState(Client::Response);
+					responses.insert(std::make_pair(clientSocket, HttpResponse(statusCode, messageBody, httpRequest.GetFieldByKey("Connection"))));
 					cachedRequests.erase(newEvent->ident);
 					// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
 					this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
@@ -494,7 +474,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						mPipeFds.erase(newEvent->ident);
 					}
 				}
-				else if (clients.find(newEvent->ident) != clients.end())
+				else if (mClients.find(newEvent->ident) != mClients.end())
 				{
 					std::cout << "Server: Notice: Pending message to " << newEvent->ident << ".\n";
 					int clientSocket = newEvent->ident;
@@ -516,12 +496,15 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 
 					if (responses[clientSocket].GetIsSendDone() == true)
 					{
-						responses.erase(clientSocket);
 						this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
-						if (IsTimeoutSocket(clientSocket))
+						mClients[clientSocket].SetState(Client::Done);
+						if (responses[clientSocket].GetConnection() != "close")
+							UpdateTimeout(clientSocket);
+						if (IsTimeoutSocket(mClients[clientSocket]))
 						{
 							DisconnectClient(clientSocket, changeList);
 						}
+						responses.erase(clientSocket);
 					}
 				}
 			}
@@ -658,24 +641,37 @@ bool HttpServer::GetDirectoryList(const std::string& targetDir, int port, std::s
     }
 }
 
-bool HttpServer::IsTimeoutSocket(int socket)
+bool HttpServer::IsTimeoutSocket(const Client& client)
 {
-	std::map<int, time_t>::iterator it = timeout.find(socket);
-	if (it != timeout.end()) return difftime(time(NULL), (*it).second) > 3;
-	else return false;
+	return difftime(time(NULL), client.GetLastResponseTime()) > 3;
 }
 
 bool HttpServer::DisconnectClient(int clientSocket, std::vector<struct kevent>& changeList)
 {
 	int result = 0;
-	if (clients.find(clientSocket) != clients.end())
+	if (mClients.find(clientSocket) != mClients.end())
 	{
 		result = close(clientSocket);
 		std::cout << RED << "Server: Notice: client " << clientSocket << " left.\n" << NM;
-		clients.erase(clientSocket);
-		timeout.erase(clientSocket);
+		mClients.erase(clientSocket);
 		addEvent(changeList, clientSocket, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 	}
 	
 	return result == 0;
+}
+
+bool HttpServer::ConnectClient(int newClientSocket, int serverSocket, std::vector<struct kevent>& changeList)
+{
+	std::cout << "Server: Notice: new client " << newClientSocket << " added.\n";
+	mClients.insert(std::make_pair(newClientSocket, Client(newClientSocket, serverSocket)));
+	fcntl(newClientSocket, F_SETFL, O_NONBLOCK);
+	this->addEvent(changeList, newClientSocket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+	this->addEvent(changeList, newClientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+	return true;
+}
+
+bool HttpServer::UpdateTimeout(int clientSocket)
+{
+	mClients[clientSocket].SetLastResponseTime(time(NULL));
+	return true;
 }

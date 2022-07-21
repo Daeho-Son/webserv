@@ -16,11 +16,12 @@
 # include <set>
 # include <vector>
 # include <cstdio>
-#include <dirent.h>
+# include <dirent.h>
 
 # include "Conf.hpp"
 # include "HttpRequest.hpp"
 # include "HttpResponse.hpp"
+# include "Client.hpp"
 
 # define RED "\033[1;31m"
 # define GRN "\033[1;32m"
@@ -59,13 +60,14 @@ private:
 	bool ReadFileAll(const std::string& filePath, std::string& result) const;
 	bool IsCGIRequest(const HttpRequest& request, int port) const;
 	bool GetDirectoryList(const std::string& targetDit, int port, std::string& result) const;
-	bool IsTimeoutSocket(int socket);
+	bool IsTimeoutSocket(const Client& client);
 	bool DisconnectClient(int clientSocket, std::vector<struct kevent>& changeList);
+	bool ConnectClient(int newClientSocket, int ServerSocket, std::vector<struct kevent> &changeList);
+	bool UpdateTimeout(int clientSocket);
 
 private:
 	Conf mServerConf;
-	std::set<int> clients;
-	std::map<int, time_t> timeout;
+	std::map<int, Client> mClients;
 	std::map<int, int> mPipeFds;
 };
 
