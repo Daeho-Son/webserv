@@ -83,7 +83,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 	{
 		int newEventSize = kevent(kq, &changeList[0], changeList.size(), eventList, this->mServerConf.GetKeventsSize(), NULL);
 		changeList.clear();
-		
+
 		std::map<int, Client>::iterator it;
 		std::stack<int> timeoutClients;
 		for (it = mClients.begin(); it != mClients.end(); ++it)
@@ -656,7 +656,7 @@ bool HttpServer::DisconnectClient(int clientSocket, std::vector<struct kevent>& 
 		addEvent(changeList, clientSocket, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 		mCachedRequests.erase(clientSocket);
 	}
-	
+
 	return result == 0;
 }
 
