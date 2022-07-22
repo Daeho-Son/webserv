@@ -45,7 +45,7 @@ public:
 	HttpRequest& operator=(const HttpRequest& other);
 	virtual ~HttpRequest();
 
-	bool Parse(std::string& buf);
+	bool Parse(const std::string& buf);
 	std::string GetFieldByKey(const std::string& key) const;
 	void GetCgiEnvVector(std::vector<std::string>& v) const;
 	std::string GetMethodStringByEnum(eMethod e) const;
@@ -64,11 +64,11 @@ public:
 protected:
 
 private:
-	bool parseRequestLine(std::string& buf);
-	bool parseHeader(std::string& buf);
-	bool parseBody(std::string& buf);
-	bool parseChunked(std::string& buf);
-	bool parseContent(std::string& buf);
+	bool parseRequestLine();
+	bool parseHeader();
+	bool parseBody();
+	bool parseChunked();
+	bool parseContent();
 private:
 	eMethod mMethod;
 	std::string mTarget;

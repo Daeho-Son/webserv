@@ -69,7 +69,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		return 1;
 	}
 
-	std::map<uintptr_t, HttpRequest> cachedRequests;
 	std::map<int, HttpResponse> responses;
 	std::vector<struct kevent> changeList;
 	for (size_t i=0; i<serverSockets.size(); ++i)
@@ -114,32 +113,29 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				if ((it = mPipeFds.find(newEvent->ident)) != mPipeFds.end())
 				{
 					int clientSocket = (*it).second;
-					HttpRequest& httpRequest = cachedRequests[clientSocket];
+					HttpRequest& httpRequest = mCachedRequests[clientSocket];
 					char readBuffer[MAX_READ_SIZE];
 					memset(readBuffer, 0, MAX_READ_SIZE);
 					int64_t readSize = 0;
-					while ((readSize = read(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], readBuffer, MAX_READ_SIZE - 1)) > 0)
+					if ((readSize = read(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], readBuffer, MAX_READ_SIZE - 1)) > 0)
 					{
 						httpRequest.mCgiInfo.mTotalReadSize += readSize;
 						httpRequest.AppendResponseMessageBody(readBuffer);
-						memset(readBuffer, 0, MAX_READ_SIZE);
 					}
 					// 다 읽었으면 Response 만들어서 보낼 준비
-
 					if (readSize == 0)
 					{
 						responses.insert(std::make_pair(clientSocket, HttpResponse(httpRequest.GetResponseMessageBody())));
-						cachedRequests.erase(clientSocket);
+						mCachedRequests.erase(clientSocket);
 						addEvent(changeList, newEvent->ident, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 						mPipeFds.erase(newEvent->ident);
 						close(newEvent->ident);
 						wait(NULL);
-						continue;
 					}
-					if (readSize == -1)
+					else if (readSize == -1)
 					{
-						// std::cerr << "Server: Error: Read Failed\n";
+						std::cerr << "Server: Error: Read Failed: " << strerror(errno) << "\n";
 					}
 				}
 				// 새로운 Client
@@ -168,32 +164,32 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					int port = serverInfo.GetPort();
 
 					/*
-					STEP 1. fd에 있는 모든 데이터를 읽는다.
+					STEP 1. fd에 있는 데이터를 읽는다.
 					*/
 					char readBuffer[MAX_READ_SIZE];
 					memset(readBuffer, 0, MAX_READ_SIZE);
-					std::string buffer;
-					int readSize;
-					while ((readSize = recv(clientSocket, readBuffer, MAX_READ_SIZE-1, MSG_DONTWAIT)) > 0)
-					{
-						buffer.append(readBuffer);
-						memset(readBuffer, 0, MAX_READ_SIZE);
-					}
+					int readSize = read(clientSocket, readBuffer, MAX_READ_SIZE-1);
 					if (readSize == 0)
 					{
+						std::cerr<< "Server: Error: Recv read size 0\n";
 						DisconnectClient(clientSocket, changeList);
+						continue;
+					}
+					else if (readSize == -1)
+					{
+						std::cerr << "Server: Error: Recv read size: -1\n";
 						continue;
 					}
 					/*
 					STEP 2: 파싱한다. 없으면 생성 후, 파싱.
 					*/
 					(*clientIt).second.SetState(Client::Request);
-					if (cachedRequests.find(clientSocket) == cachedRequests.end())
+					if (mCachedRequests.find(clientSocket) == mCachedRequests.end())
 					{
-						cachedRequests.insert(std::make_pair(clientSocket, HttpRequest()));
+						mCachedRequests.insert(std::make_pair(clientSocket, HttpRequest()));
 					}
 					try {
-						cachedRequests[clientSocket].Parse(buffer);
+						mCachedRequests[clientSocket].Parse(std::string(readBuffer));
 					}
 					catch(std::exception& e)
 					{
@@ -206,11 +202,11 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					/*
 					STEP 3: HTTP Request가 적절히 변환됐다면 올바른 Response를 구성해서 저장한다.
 					*/
-					if (cachedRequests[clientSocket].GetParseStatus() != HttpRequest::DONE)
+					if (mCachedRequests[clientSocket].GetParseStatus() != HttpRequest::DONE)
 						continue;
 					int statusCode = 417;
 					std::string messageBody = "";
-				    HttpRequest& httpRequest = cachedRequests[clientSocket];
+				    HttpRequest& httpRequest = mCachedRequests[clientSocket];
 					const HttpRequest::eMethod httpMethod = httpRequest.GetMethod();
 					if (httpRequest.GetBody().length() > mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port))
 					{
@@ -261,6 +257,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						httpRequest.mCgiInfo.mTotalReadSize = 0;
 						fcntl(httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD], F_SETFL, O_NONBLOCK);
 						fcntl(httpRequest.mCgiInfo.mPipeP2C[PIPE_READ_FD], F_SETFL, O_NONBLOCK);
+						fcntl(httpRequest.mCgiInfo.mPipeC2P[PIPE_WRITE_FD], F_SETFL, O_NONBLOCK);
 						fcntl(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], F_SETFL, O_NONBLOCK);
 
 						// fork와 CGI 프로세스 실행
@@ -277,6 +274,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							mPipeFds.insert(std::make_pair(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], newEvent->ident));
 							close(httpRequest.mCgiInfo.mPipeP2C[PIPE_READ_FD]); // 부모는 p2c 파이프에서 쓰기만 한다.
 							close(httpRequest.mCgiInfo.mPipeC2P[PIPE_WRITE_FD]); // 부모는 c2p 파이프에서 읽기만 한다.
+							// addEvent(changeList, clientSocket, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 							addEvent(changeList, httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD], EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 							addEvent(changeList, httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
 							continue;
@@ -437,12 +435,12 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							statusCode = 404;
 							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
 						}
-					}
+					} // end of method ifs
 					mClients[clientSocket].SetState(Client::Response);
 					responses.insert(std::make_pair(clientSocket, HttpResponse(statusCode, messageBody, httpRequest.GetFieldByKey("Connection"))));
-					cachedRequests.erase(newEvent->ident);
+					mCachedRequests.erase(clientSocket);
 					// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
-					this->addEvent(changeList, newEvent->ident, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+					this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 				}
 			} // 읽기 요청 이벤트 끝
 
@@ -453,7 +451,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				std::map<int, int>::iterator it = mPipeFds.find(newEvent->ident);
 				if (it != mPipeFds.end())
 				{
-					HttpRequest& httpRequest = cachedRequests[(*it).second];
+					HttpRequest& httpRequest = mCachedRequests[(*it).second];
 
 					if (httpRequest.GetBodyLength() > 0)
 					{
@@ -656,6 +654,7 @@ bool HttpServer::DisconnectClient(int clientSocket, std::vector<struct kevent>& 
 		std::cout << RED << "Server: Notice: client " << clientSocket << " left.\n" << NM;
 		mClients.erase(clientSocket);
 		addEvent(changeList, clientSocket, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
+		mCachedRequests.erase(clientSocket);
 	}
 	
 	return result == 0;

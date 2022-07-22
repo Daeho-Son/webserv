@@ -29,6 +29,8 @@ private:
     int     mCgiWriteFd;
     int     mCgiReadFd;
     // int     mResponseReadFd;
+    // int     mFileFd;
+    // std::string mFileMessageBody;
     time_t  mLastResponseTime;
 };
 

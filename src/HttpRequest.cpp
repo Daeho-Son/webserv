@@ -8,7 +8,7 @@ static inline std::string& trim(std::string& s, const char* t = " \t\n\r\f\v");
 static HttpRequest::eMethod GetMethodByString(const std::string& str);
 
 HttpRequest::HttpRequest()
-	:	mBodyLength(-1),
+	:	mBodyLength(0),
 		mResponseMessageBody("")
 
 {
@@ -16,7 +16,7 @@ HttpRequest::HttpRequest()
 }
 
 HttpRequest::HttpRequest(const HttpRequest& other)
-	:	mBodyLength(-1),
+	:	mBodyLength(0),
 		mResponseMessageBody("")
 {
 	*this = other;
@@ -35,27 +35,25 @@ HttpRequest::~HttpRequest()
 {
 }
 
-bool HttpRequest::Parse(std::string& buf)
+bool HttpRequest::Parse(const std::string& buf)
 {
 	// Load cached data
-	buf = mBufferCache + buf;
+	mBufferCache.append(buf);
 
 	if (mParseStatus == DONE) return false;
-	if (mParseStatus == REQUEST_LINE) parseRequestLine(buf);
-	if (mParseStatus == HEADER) parseHeader(buf);
-	if (mParseStatus == BODY) parseBody(buf);
-	// Cache remained buffer
-	if (mParseStatus != DONE) mBufferCache = buf;
+	if (mParseStatus == REQUEST_LINE) parseRequestLine();
+	if (mParseStatus == HEADER) parseHeader();
+	if (mParseStatus == BODY) parseBody();
 	return true;
 }
 
-bool HttpRequest::parseRequestLine(std::string& buf)
+bool HttpRequest::parseRequestLine()
 {
 	if (mParseStatus != REQUEST_LINE) throw InvalidParseStatus();
-	size_t newlinePos = buf.find("\r\n");
-	if (newlinePos == buf.npos) return false;// request line이 완성되지 못한채 들어왔을 때
+	size_t newlinePos = mBufferCache.find("\r\n");
+	if (newlinePos == mBufferCache.npos) return false;// request line이 완성되지 못한채 들어왔을 때
 
-	std::string requestLine = buf.substr(0, newlinePos);
+	std::string requestLine = mBufferCache.substr(0, newlinePos);
 	size_t firstSpace = requestLine.find(' ');
 	size_t lastSpace = requestLine.rfind(' ');
 	if (firstSpace == lastSpace)
@@ -68,20 +66,20 @@ bool HttpRequest::parseRequestLine(std::string& buf)
 	mTarget = requestLine.substr(firstSpace+1, lastSpace-firstSpace-1);
 	mHttpVersion = requestLine.substr(lastSpace+1);
 	// Caching...
-	buf.erase(0, newlinePos+2);
+	mBufferCache.erase(0, newlinePos+2);
 
 	mParseStatus = HEADER;
 	return true;
 }
 
 // If parsing failed, return false
-bool HttpRequest::parseHeader(std::string& buf)
+bool HttpRequest::parseHeader()
 {
 	if (mParseStatus != HEADER) throw InvalidParseStatus();
-	size_t delimPos = buf.find("\r\n\r\n");
-	if (delimPos == buf.npos) return false;
+	size_t delimPos = mBufferCache.find("\r\n\r\n");
+	if (delimPos == mBufferCache.npos) return false;
 
-	std::stringstream ss(buf.substr(0, delimPos));
+	std::stringstream ss(mBufferCache.substr(0, delimPos));
 
 	std::string line;
 	while (getline(ss, line))
@@ -112,40 +110,41 @@ bool HttpRequest::parseHeader(std::string& buf)
 		this->mParseStatus = DONE;
 	}
 
-	buf.erase(0, delimPos+4);
+	mBufferCache.erase(0, delimPos+4);
 	return true;
 }
 
-bool HttpRequest::parseBody(std::string& buf)
+bool HttpRequest::parseBody()
 {
 	if (mParseStatus != BODY) throw InvalidParseStatus();
 
-	if (mBodyType == CHUNKED) parseChunked(buf);
-	else if (mBodyType == CONTENT) parseContent(buf);
+	if (mBodyType == CHUNKED) parseChunked();
+	else if (mBodyType == CONTENT) parseContent();
 	else if (mBodyType == INVALID_TYPE) mParseStatus = DONE;
 	else throw InvalidParseStatus();
 
 	return true;
 }
 
-bool HttpRequest::parseChunked(std::string& buf)
+bool HttpRequest::parseChunked()
 {
 	while (true)
 	{
-		size_t chunkedLengthPos = buf.find("\r\n");
-		if (chunkedLengthPos == buf.npos) return false;
-		size_t chunkedLength = hexToInt(buf.substr(0, chunkedLengthPos));
+		size_t chunkedLengthPos = mBufferCache.find("\r\n");
+		if (chunkedLengthPos == mBufferCache.npos) return false;
+		size_t chunkedLength = hexToInt(mBufferCache.substr(0, chunkedLengthPos));
 		if (chunkedLength == 0)
 		{
-			if (buf.find("\r\n\r\n") == buf.npos)
+			if (mBufferCache.find("\r\n\r\n") == mBufferCache.npos)
 				return false;
 			mParseStatus = DONE;
 			break;
 		}
-		if ((buf.length() - chunkedLengthPos) >= chunkedLength + 4) // 청크 세트가 전부 들어온 경우
+		if ((mBufferCache.length() - chunkedLengthPos) >= chunkedLength + 4) // 청크 세트가 전부 들어온 경우
 		{
-			mBody.append(buf.substr(chunkedLengthPos+2, chunkedLength));
-			buf.erase(0, chunkedLengthPos+chunkedLength+4);
+			mBody.append(mBufferCache.substr(chunkedLengthPos+2, chunkedLength));
+			mBufferCache.erase(0, chunkedLengthPos+chunkedLength+4);
+			mBodyLength = mBody.length(); // TEST
 		}
 		else // 청크 세트가 다 들어오지 않았다면 파싱을 하지 않는다.
 		{
@@ -155,11 +154,11 @@ bool HttpRequest::parseChunked(std::string& buf)
 	return true;
 }
 
-bool HttpRequest::parseContent(std::string& buf)
+bool HttpRequest::parseContent()
 {
-	if (buf.length() >= mContentLength)
+	if (mBufferCache.length() >= mContentLength)
 	{
-		mBody = buf.substr(0, mContentLength);
+		mBody = mBufferCache.substr(0, mContentLength);
 		mParseStatus = DONE;
 		return true;
 	}

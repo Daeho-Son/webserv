@@ -69,6 +69,8 @@ private:
 	Conf mServerConf;
 	std::map<int, Client> mClients;
 	std::map<int, int> mPipeFds;
+	std::map<int, int> mFileFds;
+	std::map<uintptr_t, HttpRequest> mCachedRequests;
 };
 
 #endif
