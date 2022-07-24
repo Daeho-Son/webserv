@@ -7,6 +7,7 @@
 # include <iostream>
 # include <netinet/in.h> // sockaddr_in
 # include <string>
+# include <string.h>
 # include <sys/event.h> // kqueue()
 # include <sys/socket.h>
 # include <sys/stat.h>
@@ -32,6 +33,7 @@
 # define PIPE_WRITE_FD 1
 # define STDIN 0
 # define STDOUT 1
+# define MAX_ENVP_SIZE 5
 
 using namespace ft;
 

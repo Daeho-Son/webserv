@@ -167,7 +167,7 @@ bool HttpRequest::parseContent()
 	return false;
 }
 
-std::string HttpRequest::GetFieldByKey(const std::string &key) const // TODO: ref
+std::string HttpRequest::GetFieldByKey(const std::string &key) const
 {
 	std::map<std::string, std::string>::const_iterator fieldIt = this->mHeader.find(key);
 	if (fieldIt == this->mHeader.end())
@@ -177,18 +177,18 @@ std::string HttpRequest::GetFieldByKey(const std::string &key) const // TODO: re
 
 void HttpRequest::GetCgiEnvVector(std::vector<std::string>& v) const
 {
-	v[0] = std::string("REQUEST_METHOD=").append(GetMethodStringByEnum(mMethod));
-	v[1] = std::string("SERVER_PROTOCOL=HTTP/1.1");
-	v[2] = std::string("PATH_INFO=").append(mTarget);
+	v.push_back(std::string("REQUEST_METHOD=").append(GetMethodStringByEnum(mMethod)));
+	v.push_back(std::string("SERVER_PROTOCOL=HTTP/1.1"));
+	v.push_back(std::string("PATH_INFO=").append(mTarget));
 	if (GetFieldByKey("X-Secret-Header-For-Test") == "1")
 	{
-		v[3] = std::string("HTTP_X_SECRET_HEADER_FOR_TEST=1");
-		v[4] = "";
+		v.push_back(std::string("HTTP_X_SECRET_HEADER_FOR_TEST=1"));
+		v.push_back("");
 	}
 	else
 	{
-		v[3] = "";
-		v[4] = "";
+		v.push_back("");
+		v.push_back("");
 	}
 }
 

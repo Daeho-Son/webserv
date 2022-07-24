@@ -29,7 +29,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		memset(&serverAddress, 0, sizeof(sockaddr_in));
 		serverAddress.sin_family = AF_INET;
 		serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-		serverAddress.sin_port = htons(serverPort); // TODO: use Conf
+		serverAddress.sin_port = htons(serverPort);
 
 		int sock_opt = 1;
 
@@ -42,7 +42,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 			close(serverSocket);
 			return 1;
 		}
-		if (listen(serverSocket, mServerConf.GetListenSize()) < 0) // TODO: use Conf
+		if (listen(serverSocket, mServerConf.GetListenSize()) < 0)
 		{
 			std::cerr << RED << "Server: Error: server socket listen() failed.\n" << NM;
 			close(serverSocket);
@@ -261,25 +261,22 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					// CGI Process
 					else if (IsCGIRequest(httpRequest, port))
 					{
-						// httpRequest.ShowHeader();
-						// TODO: 환경변수 세팅
 						char* const argv[] = {
 							(char*)"cgi_tester",
 							(char*)0
 						};
-						char* envp[] = {
-							(char*)"REQUEST_METHOD=GET",
-							(char*)"SERVER_PROTOCOL=HTTP/1.1",
-							(char*)"PATH_INFO=\"/index.test\"",
-							(char*)0
-						};
-						char* envp2[] = {
-							(char*)"REQUEST_METHOD=GET",
-							(char*)"SERVER_PROTOCOL=HTTP/1.1",
-							(char*)"PATH_INFO=\"/index.test\"",
-							(char*)"HTTP_X_SECRET_HEADER_FOR_TEST=1",
-							(char*)0
-						};
+						std::vector<std::string> envpVec;
+						httpRequest.GetCgiEnvVector(envpVec);
+						
+						char** envp = (char**)malloc(sizeof(char*) * MAX_ENVP_SIZE);
+						for (int i=0; i<MAX_ENVP_SIZE; ++i){
+							envp[i] = 0;
+							if (envpVec[i].length() > 0) {
+								envp[i] = (char*)malloc(envpVec[i].length() + 1);
+								memset(envp[i], 0, envpVec[i].length() + 1);
+								strcpy(envp[i], envpVec[i].c_str());
+							}
+						}
 
 						// 파이프 세팅
 						if (pipe(httpRequest.mCgiInfo.mPipeP2C) < 0 || pipe(httpRequest.mCgiInfo.mPipeC2P) < 0)
@@ -312,6 +309,12 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							// addEvent(changeList, clientSocket, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 							addEvent(changeList, httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD], EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 							addEvent(changeList, httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+							
+							// free envp array
+							for (int i=0; i<MAX_ENVP_SIZE; ++i) {
+								if (envp[i] != 0) free(envp[i]);
+							}
+							free(envp);
 							continue;
 						}
 						else // 자식 프로세스 (= CGI 프로세스)
@@ -320,10 +323,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							close(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD]); // 자식은 c2p 파이프에 쓰기만 한다.
 							dup2(httpRequest.mCgiInfo.mPipeP2C[PIPE_READ_FD], STDIN);
 							dup2(httpRequest.mCgiInfo.mPipeC2P[PIPE_WRITE_FD], STDOUT);
-							if (httpRequest.GetFieldByKey("X-Secret-Header-For-Test") == "1")
-								execve("./html/cgi-bin/cgi_tester", argv, envp2);
-							else
-								execve("./html/cgi-bin/cgi_tester", argv, envp);
+							execve("./html/cgi-bin/cgi_tester", argv, envp);
 						}
 					}
 					else if (httpMethod == HttpRequest::GET)
@@ -390,7 +390,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
 						}
 					}
-					else if (httpMethod == HttpRequest::POST) // TODO: check available method in this directory. use conf
+					else if (httpMethod == HttpRequest::POST)
 					{
 						if (httpRequest.GetParseStatus() == HttpRequest::DONE && httpRequest.GetBodyType() == HttpRequest::INVALID_TYPE)
 						{
@@ -401,13 +401,13 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						}
 						else
 						{
-							statusCode = 204; // TODO: Remove literal
+							statusCode = 204;
 							messageBody = "";
 						}
 					}
 					else if (httpMethod == HttpRequest::DELETE)
 					{
-						statusCode = 204; // TODO: Remove literal
+						statusCode = 204;
 						messageBody = "";
 					}
 					else if (httpMethod == HttpRequest::PUT)
@@ -419,11 +419,10 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						}
 						else
 						{
-							// TODO: Fd write 이벤트 추가
 							std::string target = mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
 							if (target == "")
 							{
-								statusCode = 400; // TODO: Remove literal
+								statusCode = 400;
 								fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 							}
 							else
@@ -545,7 +544,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					{
 						HttpResponse& res = (*it).second;
 						const std::string& message = res.GetHttpMessage(MAX_WRITE_SIZE);
-						sendResult = send(clientSocket, message.c_str(), message.length(), MSG_DONTWAIT); // TODO: 2번 변환 없애기
+						sendResult = send(clientSocket, message.c_str(), message.length(), MSG_DONTWAIT);
 						if (sendResult > 0) {
 							res.IncrementSendIndex(sendResult);
 						}
@@ -620,7 +619,7 @@ HttpServer& HttpServer::operator=(const HttpServer& other)
 std::string HttpServer::GetErrorPage(const std::string& targetDir, int port) const
 {
 	std::stringstream ss;
-	std::string errorPagePath = mServerConf.GetDefaultErrorPage(targetDir, port); // TODO: use conf
+	std::string errorPagePath = mServerConf.GetDefaultErrorPage(targetDir, port);
 	std::ifstream fin(errorPagePath);
 	if (fin.is_open() == false)
 	{

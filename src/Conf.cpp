@@ -342,7 +342,7 @@ std::string Conf::GetDefaultPage(const std::string& targetDir, int port) const
 	if (locationInfoIndex == locationInfos.size())
 		return "";
 	std::string result = GetRootedLocation(targetDir, port);
-	result.append("/"); // TODO: //가 되는 경우가 있음.
+	result.append("/");
 	result.append(locationInfos[locationInfoIndex].GetDefaultFile());
 	return result;
 }
@@ -376,7 +376,7 @@ bool Conf::IsValidHttpMethod(const std::string& targetDir, int port, const std::
 	const std::vector<std::string>& acceptedMethods = locationInfos[confInfoIndex].GetAcceptedMethods();
 	for (size_t i = 0; i < acceptedMethods.size(); i++)
 	{
-		if (acceptedMethods[i] == method) //TODO: Method를 string이 아니라 enum으로 저장하기
+		if (acceptedMethods[i] == method)
 			return true;
 	}
 	return false;
