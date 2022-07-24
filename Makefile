@@ -45,7 +45,7 @@ test1 :
 
 test2 :
 	@python3 ./test/test.py
-	@rm ./put_test/test_temp_output
+	@rm -f ./put_test/test_temp_output
 
 lsof:
 	@lsof -i TCP:8080 > log.txt
