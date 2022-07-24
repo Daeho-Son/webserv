@@ -47,9 +47,6 @@ test2 :
 	@python3 ./test/test.py
 	@rm ./put_test/test_temp_output
 
-check:
-	@bash ./scripts/check_byte.sh
-
 lsof:
 	@lsof -i TCP:8080 > log.txt
 	@cat log.txt
@@ -57,4 +54,4 @@ lsof:
 siege:
 	@siege -b http://localhost:8080
 
-.PHONY : all debug clean fclean re test check lsof siege
+.PHONY : all debug clean fclean re run test1 test2 lsof siege
