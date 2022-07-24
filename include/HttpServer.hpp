@@ -64,7 +64,10 @@ private:
 	bool DisconnectClient(int clientSocket, std::vector<struct kevent>& changeList);
 	bool ConnectClient(int newClientSocket, int ServerSocket, std::vector<struct kevent> &changeList);
 	bool UpdateTimeout(int clientSocket);
+	int OpenFile(const std::string &target);
 
+	inline bool IsFileFd(int fd) { return mFileFds.find(fd) != mFileFds.end(); }
+	
 private:
 	Conf mServerConf;
 	std::map<int, Client> mClients;

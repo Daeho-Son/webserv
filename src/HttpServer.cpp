@@ -2,14 +2,14 @@
 
 HttpServer::HttpServer(Conf& conf)
 {
-	this->mServerConf = conf;
+	mServerConf = conf;
 }
 
 int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여야 합니다.
 {
 	// make server sockets
 	std::vector<int> serverSockets;
-	std::vector<ServerInfo> serverInfos = this->mServerConf.GetServerInfos();
+	std::vector<ServerInfo> serverInfos = mServerConf.GetServerInfos();
 	// <server socket, port index>
 	std::map<int, int> getServerIndexBySocket;
 	for (size_t i=0; i<serverInfos.size(); ++i)
@@ -42,8 +42,8 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 			close(serverSocket);
 			return 1;
 		}
-		std::cout << "listen size: " << this->mServerConf.GetListenSize() << std::endl;
-		if (listen(serverSocket, this->mServerConf.GetListenSize()) < 0) // TODO: use Conf
+		std::cout << "listen size: " << mServerConf.GetListenSize() << std::endl;
+		if (listen(serverSocket, mServerConf.GetListenSize()) < 0) // TODO: use Conf
 		{
 			std::cerr << RED << "Server: Error: server socket listen() failed.\n" << NM;
 			close(serverSocket);
@@ -73,15 +73,15 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 	std::vector<struct kevent> changeList;
 	for (size_t i=0; i<serverSockets.size(); ++i)
 	{
-		this->addEvent(changeList, serverSockets[i], EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+		addEvent(changeList, serverSockets[i], EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
 	}
 
-	struct kevent eventList[this->mServerConf.GetKeventsSize()];
+	struct kevent eventList[mServerConf.GetKeventsSize()];
 	std::cout << GRN << "Server: Notice: Server main loop started.\n" << NM;
 	// Main loop
 	while (1)
 	{
-		int newEventSize = kevent(kq, &changeList[0], changeList.size(), eventList, this->mServerConf.GetKeventsSize(), NULL);
+		int newEventSize = kevent(kq, &changeList[0], changeList.size(), eventList, mServerConf.GetKeventsSize(), NULL);
 		changeList.clear();
 
 		std::map<int, Client>::iterator it;
@@ -137,6 +137,35 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					{
 						std::cerr << "Server: Error: Read Failed: " << strerror(errno) << "\n";
 					}
+				}
+				else if (IsFileFd(newEvent->ident))
+				{
+					uintptr_t& fileFd = newEvent->ident;
+					int& clientSocket = mFileFds[fileFd];
+					
+					// Read file fd
+					char readBuffer[MAX_READ_SIZE];
+					memset(readBuffer, 0, MAX_READ_SIZE);
+					int readSize = read(fileFd, readBuffer, MAX_READ_SIZE-1);
+
+					if (readSize > 0)
+					{
+						std::cout << "READ!\n";
+						responses[clientSocket].AppendBody(readBuffer);
+					}
+
+					if (readSize == -1) continue;
+					else if (readSize == 0 || readSize < MAX_READ_SIZE-1)
+					{
+						std::cout << "DONE!\n";
+						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+						addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
+						mCachedRequests.erase(clientSocket);
+						mFileFds.erase(fileFd);
+						std::cout << RED << "close file fd: " << fileFd << "\n" << NM;
+						close(fileFd);
+					}
+					
 				}
 				// 새로운 Client
 				else if (IsServerSocket(serverSockets, newEvent->ident))
@@ -204,30 +233,39 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					*/
 					if (mCachedRequests[clientSocket].GetParseStatus() != HttpRequest::DONE)
 						continue;
+
 					int statusCode = 417;
 					std::string messageBody = "";
 				    HttpRequest& httpRequest = mCachedRequests[clientSocket];
 					const HttpRequest::eMethod httpMethod = httpRequest.GetMethod();
+					int fileFd = -1;
+					
 					if (httpRequest.GetBody().length() > mServerConf.GetClientBodySize(httpRequest.GetHttpTarget(), port))
 					{
 						statusCode = 413;
-						messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+						if (httpRequest.GetMethod() == HttpRequest::HEAD)
+							messageBody = "";
+						else
+							messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
 					}
 					else if (httpRequest.GetMethod() == HttpRequest::NOT_VALID)
 					{
 						statusCode = 400;
 						messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
 					}
-					else if (this->mServerConf.IsValidHttpMethod(httpRequest.GetHttpTarget(), port, httpRequest.GetMethodStringByEnum(httpMethod)) == false)
+					else if (mServerConf.IsValidHttpMethod(httpRequest.GetHttpTarget(), port, httpRequest.GetMethodStringByEnum(httpMethod)) == false)
 					{
 						statusCode = 405;
-						messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+						if (httpRequest.GetMethod() == HttpRequest::HEAD)
+							messageBody = "";
+						else
+							messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
 					}
 					// CGI Process
 					else if (IsCGIRequest(httpRequest, port))
 					{
 						// httpRequest.ShowHeader();
-						// 환경변수 세팅
+						// TODO: 환경변수 세팅
 						char* const argv[] = {
 							(char*)"cgi_tester",
 							(char*)0
@@ -305,54 +343,64 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 								// 폴더인데 루트 폴더가 아닌 경우 404
 							if (isDirectory && mServerConf.IsAutoIndex(httpRequest.GetHttpTarget(), port))
 							{
-								statusCode = 200;
 								bool success = GetDirectoryList(httpRequest.GetHttpTarget(), port, messageBody);
 								if (success)
+								{
 									statusCode = 200;
+								}
 								else
 								{
 									statusCode = 404;
-									messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
+									fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
 								}
 							}
 							else if (isDirectory)
 							{
-								bool success = ReadFileAll(mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port), messageBody); // TODO: 최적화
-								if (success)
+								fileFd = OpenFile(mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port));
+								if (fileFd != -1)
+								{
 									statusCode = 200;
+								}
 								else
 								{
 									statusCode = 404;
-									messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
+									fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
 								}
 							}
 							else
 							{
 								// 파일이면 그 파일 받아온다
-								statusCode = 200;
-								bool success = ReadFileAll(rootedTarget, messageBody);
-								if (success)
+								fileFd = OpenFile(rootedTarget);
+								if (fileFd != -1)
+								{
 									statusCode = 200;
+								}
 								else
 								{
 									statusCode = 404;
-									messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
+									fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
 								}
 							}
 						}
 						else
 						{
 							statusCode = 404;
-							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
+							fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
 						}
-
+						if (fileFd != -1)
+						{
+							mFileFds.insert(std::make_pair(fileFd, clientSocket));
+							addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+						}
 					}
 					else if (httpMethod == HttpRequest::POST) // TODO: check available method in this directory. use conf
 					{
 						if (httpRequest.GetParseStatus() == HttpRequest::DONE && httpRequest.GetBodyType() == HttpRequest::INVALID_TYPE)
 						{
 							statusCode = 411;
-							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port);
+							fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
+							addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+							mFileFds.insert(std::make_pair(fileFd, clientSocket));
 						}
 						else
 						{
@@ -370,11 +418,12 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						if (httpRequest.GetParseStatus() == HttpRequest::DONE && httpRequest.GetBodyType() == HttpRequest::INVALID_TYPE)
 						{
 							statusCode = 411;
-							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port);
+							messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
 						}
 						else
 						{
-							std::string target = this->mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
+							// TODO: Fd write 이벤트 추가
+							std::string target = mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
 							if (target == "")
 							{
 								statusCode = 400; // TODO: Remove literal
@@ -403,7 +452,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					else if (httpMethod == HttpRequest::HEAD)
 					{
 						// Check the target is directory or not.
-						std::string rootedTarget = this->mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
+						std::string rootedTarget = mServerConf.GetRootedLocation(httpRequest.GetHttpTarget(), port);
 						struct stat myStat;
 						bool isDirectory = false;
 						bool isValid = (stat(rootedTarget.c_str(), &myStat) == 0);
@@ -413,37 +462,33 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							// 폴더면 디폴트 페이지 받아오고
 							if (isDirectory)
 							{
-								bool success = ReadFileAll(this->mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port), messageBody); // TODO: 최적화
-								if (success)
-									statusCode = 200;
-								else
-									statusCode = 404;
+								fileFd = OpenFile(mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port));
+								statusCode = fileFd == -1 ? 404 : 200;
 							}
 							else
 							{
 								// 파일이면 그 파일 받아온다
-								bool success = ReadFileAll(rootedTarget, messageBody);
-								if (success)
-									statusCode = 200;
-								else
-									statusCode = 404;
+								fileFd = OpenFile(rootedTarget);
+								statusCode = fileFd == -1 ? 404 : 200;
 							}
-							messageBody = "";
 						}
 						else
 						{
 							statusCode = 404;
-							messageBody = this->GetErrorPage(httpRequest.GetHttpTarget(), port); // TODO: targetDir->rootedTarget 최적화
 						}
+						fileFd = -1; // reset fd for inserting response immediately
 					} // end of method ifs
 					mClients[clientSocket].SetState(Client::Response);
 					responses.insert(std::make_pair(clientSocket, HttpResponse(statusCode, messageBody, httpRequest.GetFieldByKey("Connection"))));
-					mCachedRequests.erase(clientSocket);
-					// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
-					this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+					if (fileFd == -1)
+					{
+						mCachedRequests.erase(clientSocket);
+						// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
+						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+					}
 				}
 			} // 읽기 요청 이벤트 끝
-
+	
 			// 쓰기 요청 이벤트
 			if (newEvent->filter == EVFILT_WRITE)
 			{
@@ -495,7 +540,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 
 					if (responses[clientSocket].GetIsSendDone() == true)
 					{
-						this->addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
 						mClients[clientSocket].SetState(Client::Done);
 						if (responses[clientSocket].GetConnection() != "close")
 							UpdateTimeout(clientSocket);
@@ -558,7 +603,7 @@ HttpServer& HttpServer::operator=(const HttpServer& other)
 std::string HttpServer::GetErrorPage(const std::string& targetDir, int port) const
 {
 	std::stringstream ss;
-	std::string errorPagePath = this->mServerConf.GetDefaultErrorPage(targetDir, port); // TODO: use conf
+	std::string errorPagePath = mServerConf.GetDefaultErrorPage(targetDir, port); // TODO: use conf
 	std::ifstream fin(errorPagePath);
 	if (fin.is_open() == false)
 	{
@@ -665,8 +710,8 @@ bool HttpServer::ConnectClient(int newClientSocket, int serverSocket, std::vecto
 	std::cout << "Server: Notice: new client " << newClientSocket << " added.\n";
 	mClients.insert(std::make_pair(newClientSocket, Client(newClientSocket, serverSocket)));
 	fcntl(newClientSocket, F_SETFL, O_NONBLOCK);
-	this->addEvent(changeList, newClientSocket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
-	this->addEvent(changeList, newClientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+	addEvent(changeList, newClientSocket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+	addEvent(changeList, newClientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
 	return true;
 }
 
@@ -674,4 +719,12 @@ bool HttpServer::UpdateTimeout(int clientSocket)
 {
 	mClients[clientSocket].SetLastResponseTime(time(NULL));
 	return true;
+}
+
+int HttpServer::OpenFile(const std::string& target)
+{
+	int fileFd = open(target.c_str(), O_RDONLY);
+	if (fileFd < 0)
+		return -1;
+	return fileFd;
 }

@@ -42,6 +42,8 @@ namespace ft
 		bool		GetHasMessage() const;
 		size_t		GetMessageLength() const;
 
+		void 		AppendBody(const std::string& str);
+
 	protected:
 
 	private:

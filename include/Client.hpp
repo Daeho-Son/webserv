@@ -18,20 +18,17 @@ public:
 	inline void		SetState(eState newState) { mState = newState; }
 	inline void		SetCgiFds(int writeFd, int readFd) { mCgiWriteFd = writeFd; mCgiReadFd = readFd; }
 	inline void		SetLastResponseTime(time_t t) { mLastResponseTime = t; }
-
     Client();
     Client(int socket, int serverSocket);
 
 private:
-    eState  mState;
-    int     mSocket;
-    int     mServerSocket;
-    int     mCgiWriteFd;
-    int     mCgiReadFd;
-    // int     mResponseReadFd;
-    // int     mFileFd;
-    // std::string mFileMessageBody;
-    time_t  mLastResponseTime;
+    eState      mState;
+    int         mSocket;
+    int         mServerSocket;
+    int         mCgiWriteFd;
+    int         mCgiReadFd;
+    time_t      mLastResponseTime;
+    // int         mResponseReadFd;
 };
 
 #endif

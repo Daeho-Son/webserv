@@ -203,6 +203,11 @@ const std::string& HttpResponse::GetHttpMessage(size_t size)
 	return mSendMessage;
 }
 
+void HttpResponse::AppendBody(const std::string& str)
+{
+	mBody.append(str);
+}
+
 HttpResponse::~HttpResponse()
 {
 
