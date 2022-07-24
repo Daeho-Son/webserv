@@ -50,7 +50,6 @@ public:
 	void GetCgiEnvVector(std::vector<std::string>& v) const;
 	std::string GetMethodStringByEnum(eMethod e) const;
 	void ShowHeader() const;
-
 	void AppendResponseMessageBody(const std::string& responseMessageBody);
 
 	// Getter
@@ -61,6 +60,11 @@ public:
 	ssize_t GetBodyLength();
 	const std::string& GetHttpTarget() const;
 	const std::string& GetResponseMessageBody() const;
+	size_t GetBodyIndex() const { return mBodyIndex; }
+
+	// Setter
+	void IncrementBodyIndex(size_t size) { mBodyIndex += size; }
+
 protected:
 
 private:
@@ -83,6 +87,7 @@ private:
 	eBodyType mBodyType;
 	std::string mBody;
 	std::string mResponseMessageBody;
+	size_t mBodyIndex;
 
 	// exceptions
 	class InvalidParseStatus : std::exception

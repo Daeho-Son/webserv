@@ -42,7 +42,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 			close(serverSocket);
 			return 1;
 		}
-		std::cout << "listen size: " << mServerConf.GetListenSize() << std::endl;
 		if (listen(serverSocket, mServerConf.GetListenSize()) < 0) // TODO: use Conf
 		{
 			std::cerr << RED << "Server: Error: server socket listen() failed.\n" << NM;
@@ -150,19 +149,17 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 
 					if (readSize > 0)
 					{
-						std::cout << "READ!\n";
-						responses[clientSocket].AppendBody(readBuffer);
+						if (responses.find(clientSocket) != responses.end())
+							responses[clientSocket].AppendBody(readBuffer);
 					}
 
 					if (readSize == -1) continue;
 					else if (readSize == 0 || readSize < MAX_READ_SIZE-1)
 					{
-						std::cout << "DONE!\n";
 						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 						addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 						mCachedRequests.erase(clientSocket);
 						mFileFds.erase(fileFd);
-						std::cout << RED << "close file fd: " << fileFd << "\n" << NM;
 						close(fileFd);
 					}
 					
@@ -351,12 +348,12 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 								else
 								{
 									statusCode = 404;
-									fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
+									fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 								}
 							}
 							else if (isDirectory)
 							{
-								fileFd = OpenFile(mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port));
+								fileFd = OpenFile(mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 								if (fileFd != -1)
 								{
 									statusCode = 200;
@@ -364,13 +361,13 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 								else
 								{
 									statusCode = 404;
-									fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
+									fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 								}
 							}
 							else
 							{
 								// 파일이면 그 파일 받아온다
-								fileFd = OpenFile(rootedTarget);
+								fileFd = OpenFile(rootedTarget, O_RDONLY);
 								if (fileFd != -1)
 								{
 									statusCode = 200;
@@ -378,14 +375,14 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 								else
 								{
 									statusCode = 404;
-									fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
+									fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 								}
 							}
 						}
 						else
 						{
 							statusCode = 404;
-							fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
+							fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 						}
 						if (fileFd != -1)
 						{
@@ -398,7 +395,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						if (httpRequest.GetParseStatus() == HttpRequest::DONE && httpRequest.GetBodyType() == HttpRequest::INVALID_TYPE)
 						{
 							statusCode = 411;
-							fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port));
+							fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 							addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
 							mFileFds.insert(std::make_pair(fileFd, clientSocket));
 						}
@@ -418,7 +415,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						if (httpRequest.GetParseStatus() == HttpRequest::DONE && httpRequest.GetBodyType() == HttpRequest::INVALID_TYPE)
 						{
 							statusCode = 411;
-							messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+							fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 						}
 						else
 						{
@@ -427,27 +424,26 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							if (target == "")
 							{
 								statusCode = 400; // TODO: Remove literal
-								messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+								fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 							}
-							std::ifstream fin(target);
-							bool isNewFile = !fin.is_open();
-							fin.close();
-
-							std::ofstream fout(target);
-							fout << httpRequest.GetBody();
-							// 해당 루트에 파일이 없으면 생성한다 -> 성공시 201, Created
-							if (isNewFile)
-							{
-								statusCode = 201;
-								messageBody = "";
-							}
-							// 해당 루트에 파일이 이미 있으면 수정한다 -> 성공시 204, No Content
 							else
 							{
-								statusCode = 204;
+								// Set status code
+								std::ifstream fin(target);
+								statusCode = fin.is_open() ? 204 : 201;
+								fin.close();
 								messageBody = "";
+
+								// Write Multiflexing
+								fileFd = OpenFile(target, O_WRONLY | O_CREAT | O_TRUNC);
+								addEvent(changeList, fileFd, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 							}
 						}
+						if (statusCode >= 400)
+						{
+							addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+						}
+						mFileFds.insert(std::make_pair(fileFd, clientSocket));
 					}
 					else if (httpMethod == HttpRequest::HEAD)
 					{
@@ -462,13 +458,13 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							// 폴더면 디폴트 페이지 받아오고
 							if (isDirectory)
 							{
-								fileFd = OpenFile(mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port));
+								fileFd = OpenFile(mServerConf.GetDefaultPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
 								statusCode = fileFd == -1 ? 404 : 200;
 							}
 							else
 							{
 								// 파일이면 그 파일 받아온다
-								fileFd = OpenFile(rootedTarget);
+								fileFd = OpenFile(rootedTarget, O_RDONLY);
 								statusCode = fileFd == -1 ? 404 : 200;
 							}
 						}
@@ -518,6 +514,27 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						mPipeFds.erase(newEvent->ident);
 					}
 				}
+				else if (IsFileFd(newEvent->ident))
+				{
+					uintptr_t& fileFd = newEvent->ident;
+					int& clientSocket = mFileFds[fileFd];
+					HttpRequest& httpRequest = mCachedRequests[clientSocket];
+					std::string buffer = httpRequest.GetBody().substr(httpRequest.GetBodyIndex(), MAX_WRITE_SIZE);
+					int writeResult = write(fileFd, buffer.c_str(), buffer.length());
+					if (writeResult > 0)
+					{
+						httpRequest.IncrementBodyIndex(writeResult);
+					}
+					if (writeResult == -1) continue;
+					else if (writeResult < MAX_WRITE_SIZE)
+					{
+						addEvent(changeList, fileFd, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
+						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+						mCachedRequests.erase(clientSocket);
+						mFileFds.erase(fileFd);
+						close(fileFd);
+					}
+				}
 				else if (mClients.find(newEvent->ident) != mClients.end())
 				{
 					std::cout << "Server: Notice: Pending message to " << newEvent->ident << ".\n";
@@ -527,7 +544,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					if ((it = responses.find(clientSocket)) != responses.end())
 					{
 						HttpResponse& res = (*it).second;
-						const std::string& message = res.GetHttpMessage(MAX_READ_SIZE);
+						const std::string& message = res.GetHttpMessage(MAX_WRITE_SIZE);
 						sendResult = send(clientSocket, message.c_str(), message.length(), MSG_DONTWAIT); // TODO: 2번 변환 없애기
 						if (sendResult > 0) {
 							res.IncrementSendIndex(sendResult);
@@ -538,7 +555,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						continue;
 					}
 
-					if (responses[clientSocket].GetIsSendDone() == true)
+					if (it != responses.end() && responses[clientSocket].GetIsSendDone() == true)
 					{
 						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, NULL);
 						mClients[clientSocket].SetState(Client::Done);
@@ -721,9 +738,9 @@ bool HttpServer::UpdateTimeout(int clientSocket)
 	return true;
 }
 
-int HttpServer::OpenFile(const std::string& target)
+int HttpServer::OpenFile(const std::string& target, int fileMode)
 {
-	int fileFd = open(target.c_str(), O_RDONLY);
+	int fileFd = open(target.c_str(), fileMode);
 	if (fileFd < 0)
 		return -1;
 	return fileFd;

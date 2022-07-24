@@ -9,15 +9,16 @@ static HttpRequest::eMethod GetMethodByString(const std::string& str);
 
 HttpRequest::HttpRequest()
 	:	mBodyLength(0),
-		mResponseMessageBody("")
-
+		mResponseMessageBody(""),
+		mBodyIndex(0)
 {
 	this->mParseStatus = REQUEST_LINE;
 }
 
 HttpRequest::HttpRequest(const HttpRequest& other)
 	:	mBodyLength(0),
-		mResponseMessageBody("")
+		mResponseMessageBody(""),
+		mBodyIndex(0)
 {
 	*this = other;
 }
@@ -28,6 +29,7 @@ HttpRequest& HttpRequest::operator=(const HttpRequest& other)
 	this->mBufferCache = other.mBufferCache;
 	this->mHeader = other.mHeader;
 	this->mResponseMessageBody = other.mResponseMessageBody;
+	this->mBodyIndex = other.mBodyIndex;
 	return *this;
 }
 
