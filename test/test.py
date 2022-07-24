@@ -36,7 +36,11 @@ class WebServGetTest(unittest.TestCase) :
 	
 	def test_204_put_exist(self):
 		res = requests.put(self.URL + "/put_test/test_temp_output", data="204_put_exist")
-		self.assertEqual(res.status_code, 204)	
+		self.assertEqual(res.status_code, 204)
+
+	def test_204_delete(self):
+		res = requests.delete(self.URL + "/directory/test_temp_output")
+		self.assertEqual(res.status_code, 204)
 
 	def test_400_no_method_exist(self):
 		res = requests.request("NO_METHOD", self.URL + "/put_test/test_temp_output")

@@ -6,7 +6,7 @@ Client::Client()
         mServerSocket(-1),
         mCgiWriteFd(-1),
         mCgiReadFd(-1),
-        mLastResponseTime(0) {}
+        mLastResponseTime(time(NULL)) {}
         // mResponseReadFd(-1),
 
 Client::Client(int socket, int serverSocket)
@@ -15,5 +15,5 @@ Client::Client(int socket, int serverSocket)
         mServerSocket(serverSocket),
         mCgiWriteFd(-1),
         mCgiReadFd(-1),
-        mLastResponseTime(0) {}
+        mLastResponseTime(time(NULL)) {}
         // mResponseReadFd(-1),

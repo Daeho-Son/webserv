@@ -14,6 +14,8 @@ public:
     inline int      GetServerSocket() const { return mServerSocket; }
     inline bool     IsCgiFd(int fd) const { return mCgiWriteFd == fd || mCgiReadFd == fd; }
 	inline time_t	GetLastResponseTime() const { return mLastResponseTime; }
+    inline int      GetCgiReadFd() const { return mCgiReadFd; }
+    inline int      GetCgiWriteFd() const { return mCgiWriteFd; }
     
 	inline void		SetState(eState newState) { mState = newState; }
 	inline void		SetCgiFds(int writeFd, int readFd) { mCgiWriteFd = writeFd; mCgiReadFd = readFd; }

@@ -91,6 +91,10 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 			{
 				timeoutClients.push((*it).first);
 			}
+			else if (IsDeadSocket((*it).second))
+			{
+				timeoutClients.push((*it).first);
+			}
 		}
 
 		while (timeoutClients.empty() == false)
@@ -134,7 +138,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					else if (readSize == -1)
 					{
-						std::cerr << "Server: Error: Read Failed: " << strerror(errno) << "\n";
+						// std::cerr << "Server: Error: Read Failed\n";
 					}
 				}
 				else if (IsFileFd(newEvent->ident))
@@ -243,12 +247,18 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						if (httpRequest.GetMethod() == HttpRequest::HEAD)
 							messageBody = "";
 						else
-							messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+						{
+							fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
+							mFileFds.insert(std::make_pair(fileFd, clientSocket));
+							addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+						}
 					}
 					else if (httpRequest.GetMethod() == HttpRequest::NOT_VALID)
 					{
 						statusCode = 400;
-						messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+						fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
+						mFileFds.insert(std::make_pair(fileFd, clientSocket));
+						addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
 					}
 					else if (mServerConf.IsValidHttpMethod(httpRequest.GetHttpTarget(), port, httpRequest.GetMethodStringByEnum(httpMethod)) == false)
 					{
@@ -256,7 +266,11 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						if (httpRequest.GetMethod() == HttpRequest::HEAD)
 							messageBody = "";
 						else
-							messageBody = GetErrorPage(httpRequest.GetHttpTarget(), port);
+						{
+							fileFd = OpenFile(mServerConf.GetDefaultErrorPage(httpRequest.GetHttpTarget(), port), O_RDONLY);
+							mFileFds.insert(std::make_pair(fileFd, clientSocket));
+							addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
+						}
 					}
 					// CGI Process
 					else if (IsCGIRequest(httpRequest, port))
@@ -304,6 +318,10 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						{
 							mPipeFds.insert(std::make_pair(httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD], newEvent->ident));
 							mPipeFds.insert(std::make_pair(httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], newEvent->ident));
+							(*clientIt).second.SetCgiFds(
+									httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD],
+									httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD]
+							);
 							close(httpRequest.mCgiInfo.mPipeP2C[PIPE_READ_FD]); // 부모는 p2c 파이프에서 쓰기만 한다.
 							close(httpRequest.mCgiInfo.mPipeC2P[PIPE_WRITE_FD]); // 부모는 c2p 파이프에서 읽기만 한다.
 							// addEvent(changeList, clientSocket, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
@@ -549,8 +567,13 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							res.IncrementSendIndex(sendResult);
 						}
 					}
-					if (sendResult == -1 || sendResult == 0) {
+					if (sendResult == -1) {
 						std::cerr << "Server: Error: Failed to send message to client.\n";
+						continue;
+					}
+					
+					if (sendResult == 0) {
+						DisconnectClient(clientSocket, changeList);
 						continue;
 					}
 
@@ -616,39 +639,6 @@ HttpServer& HttpServer::operator=(const HttpServer& other)
 	return *this;
 }
 
-std::string HttpServer::GetErrorPage(const std::string& targetDir, int port) const
-{
-	std::stringstream ss;
-	std::string errorPagePath = mServerConf.GetDefaultErrorPage(targetDir, port);
-	std::ifstream fin(errorPagePath);
-	if (fin.is_open() == false)
-	{
-		std::cerr << "Server: Error: Could not open " << errorPagePath << "\n";
-		fin.close();
-		return "";
-	}
-	std::string buf;
-	while (getline(fin, buf))
-		ss << buf;
-	fin.close();
-	return ss.str();
-}
-
-bool HttpServer::ReadFileAll(const std::string& filePath, std::string& result) const
-{
-	std::ifstream fin(filePath);
-	if (fin.is_open() == false)
-		return false;
-
-	std::stringstream ss;
-	std::string buf;
-	while (getline(fin, buf))
-		ss << buf;
-	fin.close();
-	result = ss.str();
-	return true;
-}
-
 bool HttpServer::IsServerSocket(const std::vector<int>& serverSockets, uintptr_t ident) const
 {
 	for (size_t i=0; i<serverSockets.size(); ++i)
@@ -703,7 +693,12 @@ bool HttpServer::GetDirectoryList(const std::string& targetDir, int port, std::s
 
 bool HttpServer::IsTimeoutSocket(const Client& client)
 {
-	return difftime(time(NULL), client.GetLastResponseTime()) > 3;
+	return difftime(time(NULL), client.GetLastResponseTime()) > TIMEOUT_LIMIT;
+}
+
+bool HttpServer::IsDeadSocket(const Client& client)
+{
+	return difftime(time(NULL), client.GetLastResponseTime()) > (TIMEOUT_LIMIT * 10);
 }
 
 bool HttpServer::DisconnectClient(int clientSocket, std::vector<struct kevent>& changeList)
@@ -713,9 +708,11 @@ bool HttpServer::DisconnectClient(int clientSocket, std::vector<struct kevent>& 
 	{
 		result = close(clientSocket);
 		std::cout << RED << "Server: Notice: client " << clientSocket << " left.\n" << NM;
-		mClients.erase(clientSocket);
 		addEvent(changeList, clientSocket, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 		mCachedRequests.erase(clientSocket);
+		if (mClients[clientSocket].GetCgiReadFd() != -1) close(mClients[clientSocket].GetCgiReadFd());
+		if (mClients[clientSocket].GetCgiWriteFd() != -1) close(mClients[clientSocket].GetCgiWriteFd());
+		mClients.erase(clientSocket);
 	}
 
 	return result == 0;

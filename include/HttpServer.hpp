@@ -34,6 +34,7 @@
 # define STDIN 0
 # define STDOUT 1
 # define MAX_ENVP_SIZE 5
+# define TIMEOUT_LIMIT 3
 
 using namespace ft;
 
@@ -57,12 +58,11 @@ private:
 
 	int addEvent(std::vector<struct kevent>& changeList, uintptr_t ident, int16_t filter, uint16_t flags, uint32_t fflags, intptr_t data, void* udata);
 	HttpResponse GetResponseByRequest(HttpRequest& request);
-	std::string GetErrorPage(const std::string& targetDir, int port) const;
 	bool IsServerSocket(const std::vector<int>& serverSockets, uintptr_t ident) const;
-	bool ReadFileAll(const std::string& filePath, std::string& result) const;
 	bool IsCGIRequest(const HttpRequest& request, int port) const;
 	bool GetDirectoryList(const std::string& targetDit, int port, std::string& result) const;
 	bool IsTimeoutSocket(const Client& client);
+	bool IsDeadSocket(const Client& client);
 	bool DisconnectClient(int clientSocket, std::vector<struct kevent>& changeList);
 	bool ConnectClient(int newClientSocket, int ServerSocket, std::vector<struct kevent> &changeList);
 	bool UpdateTimeout(int clientSocket);
