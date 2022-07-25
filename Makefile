@@ -1,5 +1,5 @@
 CXX = c++
-CXXFLAGS = -std=c++98 -Wall -Wextra -Werror -g -fsanitize=address
+CXXFLAGS = -std=c++98 -Wall -Wextra -Werror
 DEBUG = -g -fsanitize=address
 
 NAME = webserv
@@ -38,7 +38,7 @@ fclean : clean
 re : fclean all
 
 run : all
-	./webserv ./conf/test_1.conf
+	./webserv ./conf/dason.conf
 
 test1 :
 	./tester http://localhost:8080
@@ -48,10 +48,16 @@ test2 :
 	@rm -f ./put_test/test_temp_output
 
 lsof:
-	@lsof -i TCP:8080 > log.txt
-	@cat log.txt
+	@lsof -i TCP:8080
 
 siege:
 	@siege -b http://localhost:8080
 
-.PHONY : all debug clean fclean re run test1 test2 lsof siege
+netstat:
+	@echo netstat -t
+
+monitor:
+	@echo "netstat -t : " `netstat -t | wc -l`
+	@echo "lsof -t TCP:8080 : " `lsof -i TCP:8080 | wc -l`
+
+.PHONY : all debug clean fclean re run test1 test2 lsof siege netstat monitor
