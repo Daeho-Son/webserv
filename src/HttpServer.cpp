@@ -91,10 +91,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 			{
 				timeoutClients.push((*it).first);
 			}
-			else if (IsDeadSocket((*it).second))
-			{
-				timeoutClients.push((*it).first);
-			}
 		}
 
 		while (timeoutClients.empty() == false)
@@ -138,7 +134,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 					}
 					else if (readSize == -1)
 					{
-						// std::cerr << "Server: Error: Read Failed\n";
+						std::cerr << "Server: Error: Read Failed\n";
 					}
 				}
 				else if (IsFileFd(newEvent->ident))
@@ -157,7 +153,11 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							responses[clientSocket].AppendBody(readBuffer);
 					}
 
-					if (readSize == -1) continue;
+					if (readSize == -1)
+					{
+						std::cout << "Read size -1\n";
+						continue;
+					}
 					else if (readSize == 0 || readSize < MAX_READ_SIZE-1)
 					{
 						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
