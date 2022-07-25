@@ -583,7 +583,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						mClients[clientSocket].SetState(Client::Done);
 						if (responses[clientSocket].GetConnection() != "close")
 							UpdateTimeout(clientSocket);
-						if (IsTimeoutSocket(mClients[clientSocket]))
+						else
 						{
 							DisconnectClient(clientSocket, changeList);
 						}
