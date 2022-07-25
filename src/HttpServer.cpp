@@ -34,7 +34,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 		int sock_opt = 1;
 
 		setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &sock_opt, sizeof(sock_opt));
-		// setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &bsize, (socklen_t)rn);
 
 		if (bind(serverSocket, (sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
 		{
@@ -110,7 +109,7 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 				// CGI Read
 				std::map<int, int>::iterator it;
 				if ((it = mPipeFds.find(newEvent->ident)) != mPipeFds.end())
-				{
+					{
 					int clientSocket = (*it).second;
 					HttpRequest& httpRequest = mCachedRequests[clientSocket];
 					char readBuffer[MAX_READ_SIZE];
@@ -324,7 +323,6 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							);
 							close(httpRequest.mCgiInfo.mPipeP2C[PIPE_READ_FD]); // 부모는 p2c 파이프에서 쓰기만 한다.
 							close(httpRequest.mCgiInfo.mPipeC2P[PIPE_WRITE_FD]); // 부모는 c2p 파이프에서 읽기만 한다.
-							// addEvent(changeList, clientSocket, EVFILT_READ, EV_ADD | EV_DISABLE, 0, 0, NULL);
 							addEvent(changeList, httpRequest.mCgiInfo.mPipeP2C[PIPE_WRITE_FD], EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
 							addEvent(changeList, httpRequest.mCgiInfo.mPipeC2P[PIPE_READ_FD], EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
 							
