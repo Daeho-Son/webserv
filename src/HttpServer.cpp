@@ -736,7 +736,7 @@ bool HttpServer::UpdateTimeout(int clientSocket)
 
 int HttpServer::OpenFile(const std::string& target, int fileMode)
 {
-	int fileFd = open(target.c_str(), fileMode);
+	int fileFd = open(target.c_str(), fileMode, 0755);
 	if (fileFd < 0)
 		return -1;
 	return fileFd;
