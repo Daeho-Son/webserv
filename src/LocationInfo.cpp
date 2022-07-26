@@ -1,7 +1,9 @@
 #include "LocationInfo.hpp"
 
 LocationInfo::LocationInfo()
-	:	mClientBodySize(SIZE_T_MAX),
+	:	mbIsRedirected(false),
+		mRedirectLocation(""),
+		mClientBodySize(SIZE_T_MAX),
 		mAutoIndex(false) {}
 
 void LocationInfo::SetLocation(const std::string& location)
@@ -32,6 +34,12 @@ void LocationInfo::SetDefaultErrorfile(const std::string& defaultErrorFile)
 void LocationInfo::SetClientBodySize(size_t clientBodySize)
 {
 	mClientBodySize = clientBodySize;
+}
+
+void LocationInfo::SetRedirect(const std::string& redirectLocation)
+{
+	mbIsRedirected = true;
+	mRedirectLocation = redirectLocation;
 }
 
 void LocationInfo::SetCgi(const std::vector<std::string>& cgi)

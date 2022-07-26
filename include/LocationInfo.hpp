@@ -19,6 +19,7 @@ public:
 	void SetClientBodySize(size_t clientBodySize);
 	void SetCgi(const std::vector<std::string>& cgi);
 	void SetAutoIndex(const std::string& autoIndex);
+	void SetRedirect(const std::string& redirectLocation);
 
 	const std::string& GetLocation() const;
 	const std::vector<std::string>& GetAcceptedMethods() const;
@@ -35,6 +36,8 @@ private:
 	std::string mRoot;
 	std::string mDefaultFile;
 	std::string mDefaultErrorFile;
+	bool mbIsRedirected;
+	std::string mRedirectLocation;
 	size_t mClientBodySize;
 	std::vector<std::string> mCgi;
 	bool mAutoIndex;

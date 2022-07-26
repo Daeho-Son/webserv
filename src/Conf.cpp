@@ -200,6 +200,10 @@ bool Conf::ParseLocationInfo(ServerInfo* serverInfo, const std::vector<std::stri
 		{
 			locationInfo.SetAutoIndex(splitString[1]);
 		}
+		else if (splitString[0] == "redirect")
+		{
+			locationInfo.SetRedirect(splitString[1]);
+		}
 		else // Unknown keyword
 		{
 			mIsValid = false;
