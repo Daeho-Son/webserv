@@ -8,7 +8,7 @@ HttpResponse::HttpResponse()
 	this->mStatusCode = 0;
 	this->mDate = GetHttpFormDate();
 	this->mConnection = "Keep-Alive";
-	this->mContentType = "text/html";
+	this->mContentType = "text/plain";
 	this->mBody = "";
 	this->mSendIndex = 0;
 	this->mIsSendDone = false;
@@ -25,7 +25,7 @@ HttpResponse::HttpResponse(int statusCode, const std::string& body, const std::s
 		this->mConnection = "close";
 	else
 		this->mConnection = "Keep-Alive";
-	this->mContentType = "text/html";
+	this->mContentType = "text/plain";
 	this->mBody = body;
 	this->mSendIndex = 0;
 	this->mIsSendDone = false;
