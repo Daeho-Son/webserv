@@ -250,6 +250,12 @@ int Conf::GetListenSize() const
 	return mListenSize;
 }
 
+const std::string& Conf::GetRedirectTarget(const std::string& target, int port) const
+{
+	const LocationInfo& locationInfo = GetLocationInfo(target, port);
+	return locationInfo.GetRedirectLocation();
+}
+
 // 에러면 confinfos.size() 리턴
 size_t Conf::GetLocationInfoIndexByTargetDirectory(const std::string& targetDir, size_t serverInfoIndex) const
 {
@@ -295,6 +301,11 @@ bool Conf::IsValidCgiExtension(const std::string &targetDir, int port, const std
 	return false;
 }
 
+bool Conf::IsRedirectedTarget(const std::string& target, int port) const 
+{
+	return GetLocationInfo(target, port).IsRedirected();
+}
+
 std::string Conf::GetRootedLocation(const std::string& targetDir, int port) const
 {
 	size_t serverInfoIndex= GetServerInfoIndexByPort(port);
@@ -309,6 +320,18 @@ std::string Conf::GetRootedLocation(const std::string& targetDir, int port) cons
 	std::string root = locationInfos[locationInfoIndex].GetRoot();
 	root.append("/");
 	return root.append(targetDir.substr(targetIndex + location.size(), targetDir.size()));
+}
+
+const LocationInfo& Conf::GetLocationInfo(const std::string& targetDir, int port) const
+{
+	size_t serverInfoIndex= GetServerInfoIndexByPort(port);
+	if (serverInfoIndex == mServerInfos.size())
+		throw new std::out_of_range("No Location Info");
+	const std::vector<LocationInfo>& locationInfos = mServerInfos[serverInfoIndex].GetLocationInfos();
+	size_t locationInfoIndex = GetLocationInfoIndexByTargetDirectory(targetDir, serverInfoIndex);
+	if (locationInfoIndex == locationInfos.size() || locationInfoIndex == SIZE_T_MAX)
+		throw new std::out_of_range("No Location Info");
+	return locationInfos[locationInfoIndex];
 }
 
 bool Conf::IsRootFolder(const std::string& targetDir, int port) const

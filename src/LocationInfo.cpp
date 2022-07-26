@@ -90,7 +90,17 @@ const std::vector<std::string>& LocationInfo::GetCgi() const
 	return mCgi;
 }
 
+const std::string& LocationInfo::GetRedirectLocation() const
+{
+	return mRedirectLocation;
+}
+
 bool LocationInfo::IsAutoIndex() const
 {
 	return mAutoIndex;
+}
+
+bool LocationInfo::IsRedirected() const 
+{
+	return mbIsRedirected;
 }

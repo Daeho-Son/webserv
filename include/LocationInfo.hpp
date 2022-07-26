@@ -26,8 +26,10 @@ public:
 	const std::string& GetRoot() const;
 	const std::string& GetDefaultFile() const;
 	const std::string& GetDefaultErrorFile() const;
+	const std::string& GetRedirectLocation() const;
 	size_t GetClientBodySize() const;
 	const std::vector<std::string>& GetCgi() const;
+	bool IsRedirected() const;
 	bool IsAutoIndex() const;
 
 private:

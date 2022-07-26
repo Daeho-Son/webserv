@@ -24,6 +24,7 @@ namespace ft
 
 		// Setters
 		void SetHttpMessage();
+		void SetRedirectLocation(const std::string& location);
 
 		void IncrementSendIndex(size_t amount);
 
@@ -55,6 +56,7 @@ namespace ft
 		std::string mDate;
 		std::string mConnection;
 		std::string mContentType;
+		std::string mRedirectLocation;
 		std::string mBody;
 		std::string mMessage;
 		std::string	mSendMessage;

@@ -8,12 +8,13 @@ HttpResponse::HttpResponse()
 	this->mStatusCode = 0;
 	this->mDate = GetHttpFormDate();
 	this->mConnection = "Keep-Alive";
-	this->mContentType = "text/plain";
+	this->mContentType = "text/html";
 	this->mBody = "";
 	this->mSendIndex = 0;
 	this->mIsSendDone = false;
 	this->mHasMessage = false;
 	this->mMessageLength = 0;
+	this->mRedirectLocation = "";
 }
 
 HttpResponse::HttpResponse(int statusCode, const std::string& body, const std::string& connection)
@@ -25,12 +26,13 @@ HttpResponse::HttpResponse(int statusCode, const std::string& body, const std::s
 		this->mConnection = "close";
 	else
 		this->mConnection = "Keep-Alive";
-	this->mContentType = "text/plain";
+	this->mContentType = "text/html";
 	this->mBody = body;
 	this->mSendIndex = 0;
 	this->mIsSendDone = false;
 	this->mHasMessage = false;
 	this->mMessageLength = 0;
+	this->mRedirectLocation = "";
 }
 
 HttpResponse::HttpResponse(const std::string& cgiData)
@@ -50,6 +52,7 @@ HttpResponse::HttpResponse(const std::string& cgiData)
 	this->mHttpVersion = "HTTP/1.1";
 	this->mDate = GetHttpFormDate();
 	this->mConnection = "Keep-Alive";
+	this->mRedirectLocation = "";
 	// Set Http Header
 	std::stringstream tss;
 	for (size_t i=0; i<splitData.size(); ++i)
@@ -97,6 +100,7 @@ HttpResponse& HttpResponse::operator=(const HttpResponse& other)
 	this->mIsSendDone = false;
 	this->mHasMessage = false;
 	this->mMessageLength = 0;
+	this->mRedirectLocation = other.mRedirectLocation;
 
 	return *this;
 }
@@ -109,7 +113,13 @@ void HttpResponse::SetHttpMessage()
 	ss << this->GetHttpVersion() << " " << this->GetStatusCode() << " " << this->GetStatusText() << "\n";
 	ss << "Content-Length: " << this->GetContentLength() << "\r\n";
 	ss << "Content-Type: " << this->GetContentType() << "; charset=UTF-8\r\n";
-	if (this->GetConnection() == "close")
+	std::cout << "mRed: " << mRedirectLocation << std::endl;
+	if (mRedirectLocation != "")
+	{
+		std::cout << "Location: " << mRedirectLocation << "\n";
+		ss << "Location: " << mRedirectLocation << "\r\n\r\n";
+	}
+	else if (this->GetConnection() == "close")
 	{
 		ss << "Date: " << this->GetDate() << "\r\n\r\n";
 	}
@@ -122,6 +132,11 @@ void HttpResponse::SetHttpMessage()
 	ss << this->GetBody();
 	mMessage = ss.str();
 	mMessageLength = mMessage.length();
+}
+
+void HttpResponse::SetRedirectLocation(const std::string& location)
+{
+	mRedirectLocation = location;
 }
 
 void HttpResponse::IncrementSendIndex(size_t amount)

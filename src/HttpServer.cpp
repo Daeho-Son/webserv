@@ -252,6 +252,18 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 							addEvent(changeList, fileFd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
 						}
 					}
+					else if (mServerConf.IsRedirectedTarget(httpRequest.GetHttpTarget(), port))
+					{
+						statusCode = 301;
+						mClients[clientSocket].SetState(Client::Response);
+						HttpResponse response(statusCode, messageBody, httpRequest.GetFieldByKey("Connection"));
+						response.SetRedirectLocation(mServerConf.GetRedirectTarget(httpRequest.GetHttpTarget(), port));
+						responses.insert(std::make_pair(clientSocket, response));
+						mCachedRequests.erase(clientSocket);
+						// 제대로된 HTTP Request를 받았다면 서버도 메세지를 보낼 준비를 한다.
+						addEvent(changeList, clientSocket, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, NULL);
+						continue;
+					}
 					else if (httpRequest.GetMethod() == HttpRequest::NOT_VALID)
 					{
 						statusCode = 400;
@@ -487,6 +499,8 @@ int HttpServer::Run() // 서버를 실행합니다. Init()이 실행된 후여�
 						{
 							statusCode = 404;
 						}
+						if (fileFd > 0)
+							close(fileFd);
 						fileFd = -1; // reset fd for inserting response immediately
 					} // end of method ifs
 					mClients[clientSocket].SetState(Client::Response);

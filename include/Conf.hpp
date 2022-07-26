@@ -1,6 +1,7 @@
 #ifndef CONF_HPP
 # define CONF_HPP
 
+# include <exception>
 # include <iostream>
 # include <string>
 # include <fstream>
@@ -32,11 +33,13 @@ public:
 	std::string GetRootedLocation(const std::string& targetDir, int port) const;
 	std::string GetDefaultPage(const std::string& targetDir, int port) const;
 	std::string GetDefaultErrorPage(const std::string& targetDir, int port) const;
+	const std::string& GetRedirectTarget(const std::string& target, int port) const;
 	size_t GetClientBodySize(const std::string& tartgetDir, int port) const;
 	bool IsValidHttpMethod(const std::string& targetDir, int port, const std::string &method) const;
 	void PrintConfData() const;
 	bool IsRootFolder(const std::string& targetDir, int port) const;
 	bool IsAutoIndex(const std::string& targetDir, int port) const;
+	bool IsRedirectedTarget(const std::string& target, int port) const;
 
 private:
 	void Parse(const std::string& contFile);
@@ -45,6 +48,7 @@ private:
 
 	size_t GetLocationInfoIndexByTargetDirectory(const std::string& targetDir, size_t serverInfoIndex) const;
 	size_t GetServerInfoIndexByPort(int port) const;
+	const LocationInfo& GetLocationInfo(const std::string& targetDir, int port) const;
 
 private:
 	std::vector<ServerInfo> mServerInfos;
