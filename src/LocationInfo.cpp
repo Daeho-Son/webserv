@@ -19,9 +19,9 @@ void LocationInfo::SetRoot(const std::string& root)
 	mRoot = root;
 }
 
-void LocationInfo::SetDefaultFile(const std::string& deaultFile)
+void LocationInfo::SetDefaultFile(const std::string& defaultFile)
 {
-	mDefaultFile = deaultFile;
+	mDefaultFile = defaultFile;
 }
 
 void LocationInfo::SetDefaultErrorfile(const std::string& defaultErrorFile)
